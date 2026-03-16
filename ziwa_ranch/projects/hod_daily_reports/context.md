@@ -6,7 +6,7 @@
 
 ## Project overview
 
-Ziwa Ranch has 15 departments, each with a head of department (HOD) who must submit a daily report. This project builds the system that makes that easy and reliable — starting with a web portal and admin dashboard (Phase 1, v1.6 live), evolving through WhatsApp integration, AI verification, and automated insights in later phases.
+Ziwa Rhino And Wildlife Ranch has 15 departments, each with a head of department (HOD) who must submit a daily report. This project builds the system that makes that easy and reliable — starting with a web portal and admin dashboard (Phase 1, v1.8 live), evolving through WhatsApp integration, AI verification, and automated insights in later phases.
 
 ## Metadata
 
@@ -16,7 +16,7 @@ Ziwa Ranch has 15 departments, each with a head of department (HOD) who must sub
 | Depth | Quick |
 | Staging | Phased — Phase 1 (web portal + dashboard), Phase 2 (WhatsApp), Phase 3 (AI agent), Phase 4 (insights & automation) |
 | Complexity stance | Simple as possible — functional first, iterate later |
-| Current phase | Phase 1 v1.6 live. Phase 2 blocked on Meta setup. |
+| Current phase | Phase 1 v1.8 live. Phase 2 blocked on Meta setup. |
 | Started | 14 March 2026 |
 
 ## Folder structure
@@ -43,7 +43,8 @@ hod_daily_reports/
     ├── v1/snapshot.md          ← V1 project snapshot (point-in-time record)
     ├── v1.2/snapshot.md        ← V1.2 snapshot
     ├── v1.4/snapshot.md        ← V1.4 snapshot
-    └── v1.6/snapshot.md        ← V1.6 snapshot (current)
+    ├── v1.6/snapshot.md        ← V1.6 snapshot
+    └── v1.8/snapshot.md        ← V1.8 snapshot (current)
 ```
 
 ## Context loading
@@ -66,7 +67,7 @@ Everything in Standard, then:
 - `3_architecture/materials_tools_list.md`
 - `4_development/02_whatsapp_build.md` — Phase 2 setup checklist and progress
 - `4_development/01_portal_build.md` — Phase 1 build history
-- `versions/v1.6/snapshot.md` — current version snapshot
+- `versions/v1.8/snapshot.md` — current version snapshot
 - Source code in `4_development/portal/config/forms.ts` and `components/FormRenderer.tsx`
 
 ## Key people
@@ -83,7 +84,7 @@ Everything in Standard, then:
 |---|---|
 | Supabase project | Shared with restaurant management system — `inidzwfjnkyinxhvbrdt` |
 | Supabase URL | `https://inidzwfjnkyinxhvbrdt.supabase.co` |
-| DB tables | `hod_departments` (15), `hod_daily_reports`, `hod_verified_stock`, `hod_item_library` |
+| DB tables | `hod_departments` (15), `hod_daily_reports`, `hod_verified_stock`, `hod_item_library`, `hod_drafts`, `hod_error_log` |
 | DB timezone | `Africa/Kampala` |
 | Frontend | Next.js 16, Tailwind v4, React 19 — code at `4_development/portal/` |
 | Live URL | `https://hoddailyreports.netlify.app` |
@@ -98,4 +99,5 @@ Everything in Standard, then:
 - 14/03/2026 — **v1.2 live.** Rebranded with Ziwa identity, all forms refined, 3 new departments added (IT, Wildlife, Craft Shop), admin dashboard with stats and report viewer. Commit `cceeffb`.
 - 15/03/2026 — HOD rollout complete. First reports received. System performing correctly.
 - 15/03/2026 — **v1.4 live.** Save Draft, F&B/Store overhaul, stock projection, three-tier late timing, silent item harvesting. Commit `d0bf233`.
-- 16/03/2026 — **v1.6 live.** Report editing + audit trail, autocomplete, auto-calculations, stock reconciliation, dashboard upgrades (CSV export, compliance tracking, acknowledgements), name selector rework, Africa/Kampala timezone, KML-sourced locations, form refinements across all 15 departments. Commit `a53a538`. Ready for v1.8 planning.
+- 16/03/2026 — **v1.6 live.** Report editing + audit trail, autocomplete, auto-calculations, stock reconciliation, dashboard upgrades (CSV export, compliance tracking, acknowledgements), name selector rework, Africa/Kampala timezone, KML-sourced locations, form refinements across all 15 departments. Commit `a53a538`.
+- 16/03/2026 — **v1.8 live.** Fixed critical submission bug (RLS), error infrastructure, DB drafts, structured review workflow with three-colour dot system, HOD inline editing, Monday-only stock gating, dynamic deadline badge, HOD landing page redesign, admin date change, admin report deletion, F&B crash fix, timezone corrections, rebranded to Ziwa Rhino And Wildlife Ranch. Commit `322fff0`.

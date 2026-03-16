@@ -9,33 +9,41 @@
 
 | Step | Status | Notes |
 |---|---|---|
-| Phase 1 — Portal v1.6 | Live & verified | Deployed and tested 16 March 2026. Final commit `a53a538`. |
+| Phase 1 — Portal v1.8 | Live & verified | Deployed and tested 16 March 2026. Final commit `322fff0`. |
 | Phase 1 — HOD rollout | Live | All 15 departments active. Reports coming in daily. |
 | **Phase 2 — Meta Business setup** | In progress | Business registration underway |
 | Phase 2 — Technical build | Blocked | Waiting on Meta credentials |
-| **v1.8 — Planning** | Ready to start | Candidates captured below |
 
 ---
 
-## What v1.6 delivered (verified live)
+## What v1.8 delivered (verified live)
 
-Full detail in `versions/v1.6/snapshot.md`. Summary:
+Full detail in `versions/v1.8/snapshot.md`. Summary:
 
-1. **Report editing** — HODs can edit until 8 PM next day; admins any time. Full audit trail in JSONB edit_history.
-2. **Duplicate submission guard** — unique constraint + client-side check with link to edit existing report.
-3. **Item autocomplete** — type-ahead from `hod_item_library` for F&B, Store, Drivers, HQ Maintenance fields.
-4. **Auto-calculations** — Drivers distance, Accounts petty cash suggestion. Never pre-filled; shown as hints.
-5. **Stock reconciliation** — Admin page to approve/flag Monday stock counts.
-6. **Dashboard upgrades** — 7-day default, CSV export, compliance tracking, report acknowledgement.
-7. **Name selector rework** — HOD pre-selected, substitutes in "Team" optgroup, "Someone else" for ad-hoc.
-8. **Africa/Kampala timezone** — all date/time logic uses IANA timezone. DB timezone set.
-9. **Next-morning date default** — 5 HODs default to yesterday before noon (Howard, Musoni, Elly, Jjuko, Robert).
-10. **KML-sourced locations** — real Ziwa gates, areas, zones from Google Earth data.
-11. **Form refinements** — Electrical restructured (Fence Patrol + HQ Power), Security patrols/unregistered people area pickers, Wildlife area/zone selects + per-sighting notes, Store/Drivers/HQ Maintenance/Plumbing/IT mandatory field updates, Craft Shop structured stock prompt, IT job cards repeater.
+1. **P0: Submission bug fix** — `INSERT ... RETURNING` required a `SELECT` RLS policy. Added it. Reports now save reliably.
+2. **Error infrastructure** — `hod_error_log` table, `/api/log-error` route, `/dashboard/errors` page, client-side error classification with specific messages.
+3. **Database drafts** — Moved from `localStorage` to `hod_drafts` table. Auto-saves every 30s. Unique per HOD/date.
+4. **Dynamic deadline badge** — Updates in real time based on Kampala time.
+5. **Monday-only stock counts** — F&B bar stock and Store stock greyed out on non-Mondays. Consistent across all form modes.
+6. **HOD inline editing** — Navigate to a previous date, see submitted report, edit in place. Window until 12:00 next day.
+7. **Structured review system** — Reviewer dropdown (MD, GM, someone else), comments, three-colour dot system (green/amber/red).
+8. **HOD landing redesign** — Status overview when all reports submitted, recent report mini-cards, next deadline.
+9. **Main Gate cleanup** — Removed Mobile Money Balance section.
+10. **F&B crash fix** — Type guard on repeater values for legacy string data.
+11. **Dashboard polish** — Kampala timezone on all times, edited_at column, review dot legend.
+12. **Admin date change** — Change a report's date with conflict detection and audit logging.
+13. **Admin report deletion** — Two-stage confirmation requiring department name to be typed. Server-side verification.
+14. **Rebrand** — All references updated to "Ziwa Rhino And Wildlife Ranch".
 
 ---
 
-## v1.8 — Scope candidates
+## What v1.6 delivered
+
+See `versions/v1.6/snapshot.md`. Highlights: report editing + audit trail, item autocomplete, auto-calculations, stock reconciliation, dashboard upgrades (CSV export, compliance tracking, acknowledgements), name selector rework, Africa/Kampala timezone, KML-sourced locations, form refinements across all 15 departments.
+
+---
+
+## Scope candidates for future versions
 
 ### From v1.4 backlog (not yet addressed)
 
@@ -91,7 +99,7 @@ Full detail in `versions/v1.6/snapshot.md`. Summary:
 | Supabase project | `inidzwfjnkyinxhvbrdt` (EU West Frankfurt) |
 | Supabase URL | `https://inidzwfjnkyinxhvbrdt.supabase.co` |
 | DB timezone | `Africa/Kampala` |
-| Tables | `hod_departments` (15), `hod_daily_reports` (growing), `hod_verified_stock`, `hod_item_library` |
+| Tables | `hod_departments` (15), `hod_daily_reports` (growing), `hod_verified_stock`, `hod_item_library`, `hod_drafts`, `hod_error_log` |
 | Frontend | Next.js 16, Tailwind v4, React 19 |
 | Code location | `4_development/portal/` |
 | GitHub repo | `https://github.com/thebusinessdevelopers/hod_daily_reports` |
@@ -107,7 +115,7 @@ Full detail in `versions/v1.6/snapshot.md`. Summary:
 | `config/locations.ts` | Shared areas (7), zones (15), gates (10) — sourced from KML |
 | `config/calculations.ts` | Auto-calculation rules per department |
 | `types/index.ts` | All TypeScript interfaces |
-| `lib/submission-status.ts` | Timezone-aware submission timing + date formatting helpers |
+| `lib/submission-status.ts` | Timezone-aware submission timing, deadline badge, date formatting helpers |
 
 ### Environment variables (all set on Netlify)
 
@@ -120,4 +128,4 @@ Full detail in `versions/v1.6/snapshot.md`. Summary:
 
 ---
 
-*Updated: 16 March 2026. v1.6 live and verified. Next: v1.8 planning.*
+*Updated: 16 March 2026. v1.8 live and verified.*
