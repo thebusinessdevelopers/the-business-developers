@@ -9,31 +9,30 @@
 
 | Step | Status | Notes |
 |---|---|---|
-| Phase 1 — Portal v1.8 | Live & verified | Deployed and tested 16 March 2026. Final commit `322fff0`. |
+| Phase 1 — Portal v1.9 | Live & verified | Deployed and tested 16 March 2026. Final commit `63c57da`. |
 | Phase 1 — HOD rollout | Live | All 15 departments active. Reports coming in daily. |
 | **Phase 2 — Meta Business setup** | In progress | Business registration underway |
 | Phase 2 — Technical build | Blocked | Waiting on Meta credentials |
 
 ---
 
-## What v1.8 delivered (verified live)
+## What v1.9 delivered (verified live)
 
-Full detail in `versions/v1.8/snapshot.md`. Summary:
+Full detail in `versions/v1.9/snapshot.md`. Summary:
 
-1. **P0: Submission bug fix** — `INSERT ... RETURNING` required a `SELECT` RLS policy. Added it. Reports now save reliably.
-2. **Error infrastructure** — `hod_error_log` table, `/api/log-error` route, `/dashboard/errors` page, client-side error classification with specific messages.
-3. **Database drafts** — Moved from `localStorage` to `hod_drafts` table. Auto-saves every 30s. Unique per HOD/date.
-4. **Dynamic deadline badge** — Updates in real time based on Kampala time.
-5. **Monday-only stock counts** — F&B bar stock and Store stock greyed out on non-Mondays. Consistent across all form modes.
-6. **HOD inline editing** — Navigate to a previous date, see submitted report, edit in place. Window until 12:00 next day.
-7. **Structured review system** — Reviewer dropdown (MD, GM, someone else), comments, three-colour dot system (green/amber/red).
-8. **HOD landing redesign** — Status overview when all reports submitted, recent report mini-cards, next deadline.
-9. **Main Gate cleanup** — Removed Mobile Money Balance section.
-10. **F&B crash fix** — Type guard on repeater values for legacy string data.
-11. **Dashboard polish** — Kampala timezone on all times, edited_at column, review dot legend.
-12. **Admin date change** — Change a report's date with conflict detection and audit logging.
-13. **Admin report deletion** — Two-stage confirmation requiring department name to be typed. Server-side verification.
-14. **Rebrand** — All references updated to "Ziwa Rhino And Wildlife Ranch".
+1. **Kitchen stock overhaul** — Monday-only stock count with item/qty/unit/cost per unit. Daily stock added (optional) and stock used (required) repeaters. Closing stock and opening stock removed — replaced by projections.
+2. **Auto-calculated food cost** — Sum of (qty x cost per unit) from Stock Used Today. Appears as a hint the HOD can accept or override.
+3. **Kitchen stock projections** — Projected Kitchen Stock card on landing page. Monday baseline + stock added - stock used.
+4. **On-duty pickers (Kitchen)** — Three checkbox groups (Breakfast, Lunch, Dinner) with 8 kitchen staff options.
+5. **On-duty pickers (F&B)** — Three checkbox groups (Breakfast, Lunch, Dinner) with 12 F&B team options.
+6. **Kitchen team expanded** — Substitutes: Richard (2IC), Safari, David, Felly, Lawrence, Koffi.
+7. **FormRenderer refactored** — `checkbox_group` rendering added. Monday stock write uses `config.stockConfig` instead of hardcoded slugs.
+
+---
+
+## What v1.8 delivered
+
+Full detail in `versions/v1.8/snapshot.md`. Highlights: critical submission bug fix (RLS), error infrastructure, DB drafts, structured review workflow with three-colour dot system, HOD inline editing, Monday-only stock gating, dynamic deadline badge, HOD landing page redesign, admin date change, admin report deletion, F&B crash fix, rebranded to Ziwa Rhino And Wildlife Ranch.
 
 ---
 
@@ -128,4 +127,4 @@ See `versions/v1.6/snapshot.md`. Highlights: report editing + audit trail, item 
 
 ---
 
-*Updated: 16 March 2026. v1.8 live and verified.*
+*Updated: 16 March 2026. v1.9 live and verified.*

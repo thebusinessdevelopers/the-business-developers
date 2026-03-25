@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ziwa-50: #fef9eb;
+  --color-ziwa-100: #fdf0c8;
+  --color-ziwa-200: #fbe08e;
+  --color-ziwa-300: #f8cc52;
+  --color-ziwa-400: #f4b724;
+  --color-ziwa-500: #eaa11f;
+  --color-ziwa-600: #cc7c14;
+  --color-ziwa-700: #a85a0d;
+  --color-ziwa-800: #8b4513;
+  --color-ziwa-900: #733915;
+  --color-ziwa-950: #421c08;
+}
+
+:root {
+  --background: #f9fafb;
+  --foreground: #111827;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

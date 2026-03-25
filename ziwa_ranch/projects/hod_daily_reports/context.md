@@ -6,7 +6,7 @@
 
 ## Project overview
 
-Ziwa Rhino And Wildlife Ranch has 15 departments, each with a head of department (HOD) who must submit a daily report. This project builds the system that makes that easy and reliable — starting with a web portal and admin dashboard (Phase 1, v1.8 live), evolving through WhatsApp integration, AI verification, and automated insights in later phases.
+Ziwa Rhino And Wildlife Ranch has 15 departments, each with a head of department (HOD) who must submit a daily report. This project builds the system that makes that easy and reliable — starting with a web portal and admin dashboard (Phase 1, v1.9 live), evolving through WhatsApp integration, AI verification, and automated insights in later phases.
 
 ## Metadata
 
@@ -16,7 +16,7 @@ Ziwa Rhino And Wildlife Ranch has 15 departments, each with a head of department
 | Depth | Quick |
 | Staging | Phased — Phase 1 (web portal + dashboard), Phase 2 (WhatsApp), Phase 3 (AI agent), Phase 4 (insights & automation) |
 | Complexity stance | Simple as possible — functional first, iterate later |
-| Current phase | Phase 1 v1.8 live. Phase 2 blocked on Meta setup. |
+| Current phase | Phase 1 v1.9 live. **v2 planned — build starting.** Phase 2 (WhatsApp) blocked on Meta setup. |
 | Started | 14 March 2026 |
 
 ## Folder structure
@@ -34,7 +34,8 @@ hod_daily_reports/
 │   ├── materials_tools_list.md ← Tech stack and services
 │   └── build_rules.md          ← Standards, principles, and scope boundaries
 ├── 4_development/
-│   ├── next_chat_handover.md   ← Current build state + next steps (read for any dev task)
+│   ├── next_chat_handover.md   ← v1.x build state (historical)
+│   ├── next_chat_handover_v2.md ← **v2 build handover — read this for any v2 dev task**
 │   ├── 01_portal_build.md      ← Phase 1 build log
 │   ├── 02_whatsapp_build.md    ← Phase 2 build log + setup checklist
 │   └── portal/                 ← Next.js source code (deployed to Netlify)
@@ -44,7 +45,8 @@ hod_daily_reports/
     ├── v1.2/snapshot.md        ← V1.2 snapshot
     ├── v1.4/snapshot.md        ← V1.4 snapshot
     ├── v1.6/snapshot.md        ← V1.6 snapshot
-    └── v1.8/snapshot.md        ← V1.8 snapshot (current)
+    ├── v1.8/snapshot.md        ← V1.8 snapshot
+    └── v1.9/snapshot.md        ← V1.9 snapshot (current)
 ```
 
 ## Context loading
@@ -55,10 +57,10 @@ Read this file only. You know what the project is, where everything lives, and w
 ### Standard
 Read in order:
 1. This file (done)
-2. `4_development/next_chat_handover.md` — current build state and next steps
-3. `1_context/project_summary.md` — plain-language overview
-4. `3_architecture/design.md` — Phase 1 system design
-5. `3_architecture/design_phase2.md` — Phase 2 WhatsApp design
+2. `4_development/next_chat_handover_v2.md` — **v2 build handover (read this for any v2 work)**
+3. `4_development/next_chat_handover.md` — v1.x build state (historical reference)
+4. `1_context/project_summary.md` — plain-language overview
+5. `3_architecture/design.md` — Phase 1 system design
 6. `3_architecture/build_rules.md` — scope boundaries and standards
 
 ### Deep
@@ -67,7 +69,8 @@ Everything in Standard, then:
 - `3_architecture/materials_tools_list.md`
 - `4_development/02_whatsapp_build.md` — Phase 2 setup checklist and progress
 - `4_development/01_portal_build.md` — Phase 1 build history
-- `versions/v1.8/snapshot.md` — current version snapshot
+- `versions/v1.9/snapshot.md` — current version snapshot
+- The v2 plan at `.cursor/plans/hod_reports_v2_plan_2736ce5a.plan.md`
 - Source code in `4_development/portal/config/forms.ts` and `components/FormRenderer.tsx`
 
 ## Key people
@@ -101,3 +104,5 @@ Everything in Standard, then:
 - 15/03/2026 — **v1.4 live.** Save Draft, F&B/Store overhaul, stock projection, three-tier late timing, silent item harvesting. Commit `d0bf233`.
 - 16/03/2026 — **v1.6 live.** Report editing + audit trail, autocomplete, auto-calculations, stock reconciliation, dashboard upgrades (CSV export, compliance tracking, acknowledgements), name selector rework, Africa/Kampala timezone, KML-sourced locations, form refinements across all 15 departments. Commit `a53a538`.
 - 16/03/2026 — **v1.8 live.** Fixed critical submission bug (RLS), error infrastructure, DB drafts, structured review workflow with three-colour dot system, HOD inline editing, Monday-only stock gating, dynamic deadline badge, HOD landing page redesign, admin date change, admin report deletion, F&B crash fix, timezone corrections, rebranded to Ziwa Rhino And Wildlife Ranch. Commit `322fff0`.
+- 16/03/2026 — **v1.9 live.** Kitchen stock overhaul (Monday-only count, daily stock added/used repeaters, projections, auto-calculated food cost). On-duty checkbox pickers for Kitchen and F&B across breakfast/lunch/dinner. FormRenderer stock write refactored to config-driven. Commit `63c57da`.
+- 25/03/2026 — **v2 planned.** Authentication, two-stage HOD hub, compliance fixes, admin improvements, connectivity resilience, Housekeeping room-by-room reporting, Kitchen near-expired items. Build handover at `4_development/next_chat_handover_v2.md`. Full plan at `.cursor/plans/hod_reports_v2_plan_2736ce5a.plan.md`.
