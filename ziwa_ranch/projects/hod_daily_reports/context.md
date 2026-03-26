@@ -16,7 +16,7 @@ Ziwa Rhino And Wildlife Ranch has 15 departments, each with a head of department
 | Depth | Quick |
 | Staging | Phased — Phase 1 (web portal + dashboard), Phase 2 (WhatsApp), Phase 3 (AI agent), Phase 4 (insights & automation) |
 | Complexity stance | Simple as possible — functional first, iterate later |
-| Current phase | **v2.0 complete (Phases A–F).** Phase 2 (WhatsApp) blocked on Meta setup. |
+| Current phase | **v2.0 in production. v2.1 built on dev branch (Phases A–I: photos, inventory grid, AI, admin enhancements).** Ready for v2.2 planning. |
 | Started | 14 March 2026 |
 
 ## Folder structure

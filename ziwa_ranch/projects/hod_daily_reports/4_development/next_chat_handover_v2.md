@@ -1,12 +1,14 @@
 # v2 Build Handover
 
-> **Purpose:** Everything you need to continue building HOD Daily Reports v2. Load this file, follow the context loading instructions, then continue from where we left off.
+> **Purpose:** Everything you need to continue building HOD Daily Reports. Load this file, follow the context loading instructions, then continue from where we left off.
 >
 > **Updated:** 26 March 2026
-> **Current version:** v2.1 — Phases A–H built + Hugging Face AI integration, on dev branch
-> **Base version:** v2.0 complete — all six phases (A–F) delivered
-> **HOD portal:** https://hoddailyreports.netlify.app (live)
-> **Admin portal:** https://hod-admin-portal.netlify.app (live)
+> **Current version:** v2.1 built on dev branch, ready for v2.2 planning
+> **Base version:** v2.0 complete (production), v2.1 complete (dev branch)
+> **HOD portal:** https://hoddailyreports.netlify.app (production — v2.0)
+> **Admin portal:** https://hod-admin-portal.netlify.app (production — v2.0)
+> **HOD dev preview:** https://dev--hoddailyreports.netlify.app (v2.1)
+> **Admin dev preview:** https://dev--hod-admin-portal.netlify.app (v2.1)
 
 ---
 
@@ -17,7 +19,8 @@
 1. This file (you're reading it)
 2. `context.md` — project overview, folder structure, technical state
 3. `3_architecture/build_rules.md` — standards and principles (still apply)
-4. `versions/v2.0/snapshot.md` — full record of what v2.0 Phases A, B, C, D, and E delivered
+4. `versions/v2.0/snapshot.md` — full record of what v2.0 delivered
+5. `versions/v2.1/snapshot.md` — full record of what v2.1 delivered (on dev branch)
 
 Then read the source files relevant to whichever phase you're building (listed per phase below).
 
@@ -185,7 +188,7 @@ The admin dashboard for reviewing reports, tracking compliance, managing stock, 
 | `/compliance` | Per-department compliance bars, WhatsApp compliance message |
 | `/errors` | Error log from `hod_error_log` |
 
-**API routes:** `review-report`, `batch-review-reports`, `change-report-date`, `delete-report`, `harvest-items`, `item-suggestions/[slug]`
+**API routes:** `review-report`, `batch-review-reports`, `change-report-date`, `delete-report`, `harvest-items`, `item-suggestions/[slug]`, `announcements`, `reset-password`, `daily-digest`
 
 **Shared code (copied from portal):** `config/forms.ts`, `config/rooms.ts`, `config/calculations.ts`, `config/locations.ts`, `types/index.ts`, `lib/supabase.ts`, `lib/supabase-server.ts`, `lib/submission-status.ts`, all `components/*`.
 
@@ -228,6 +231,7 @@ The admin dashboard for reviewing reports, tracking compliance, managing stock, 
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-side key for API routes |
 | `ADMIN_PASSWORD` | Admin portal password (`ziwajefes2005`) |
+| `HF_TOKEN` | Hugging Face Inference API token (Read scope) — added in v2.1 |
 
 ---
 
@@ -284,11 +288,74 @@ All accounts use password `ziwa2026`. Usernames follow `department.firstname` pa
 
 ## Known issues and pending items
 
-1. **Admin login redirect** — The HOD portal's `/api/auth/login` route returns `redirectTo: '/dashboard'` for admin-role users, but there is no `/dashboard` route in the HOD portal (it was removed during cleanup). Admin users logging into the HOD portal should be redirected to `/report/[slug]` or the admin portal URL instead.
+1. ~~**Admin login redirect**~~ — Fixed in v2.1 Phase H. Now redirects to `/report/[slug]`.
 2. **Admin portal FormRenderer** — The admin portal's `FormRenderer.tsx` is a copy from before Phase B. It still uses direct Supabase inserts, does not have the draft hook, and calls `/api/log-error` which does not exist in the admin portal. The admin portal only uses FormRenderer for edits (not new submissions), so this is non-breaking but the copy is now out of sync. Phase C added `readOnly` support. `onSuccess` and `departmentId` are now optional props (hotfix, 26 March 2026).
-3. **Shared code sync** — The two applications share `config/forms.ts`, `config/rooms.ts`, `components/FormRenderer.tsx`, `components/RoomGrid.tsx`, `lib/submission-status.ts`, and other files as copies. Phase C synced `submission-status.ts`. Phase E synced `forms.ts`, `rooms.ts`, `RoomGrid.tsx`, and `types/index.ts`. `FormRenderer.tsx` remains structurally out of sync (admin version lacks draft hook and server-side submission but this is acceptable since admin only uses it for edits; both versions now handle `room_grid`).
-4. **Admin API route auth** — Admin portal API routes (`delete-report`, `change-report-date`, `review-report`, `batch-review-reports`) do not verify the `admin_auth` cookie. They rely on the routes being behind the layout auth gate and non-discoverable.
+3. **Shared code sync** — The two applications share `config/forms.ts`, `config/rooms.ts`, `components/FormRenderer.tsx`, `components/RoomGrid.tsx`, `lib/submission-status.ts`, and other files as copies. `FormRenderer.tsx` remains structurally out of sync (admin version lacks draft hook and server-side submission but this is acceptable since admin only uses it for edits; both versions now handle `room_grid`, `photo`, and `inventory_grid`).
+4. ~~**Admin API route auth**~~ — Fixed in v2.1 Phase H. All 8 admin API routes now check `verifyAdminAuth`.
 5. **Netlify plugin configuration** — The `@netlify/plugin-nextjs` must be registered as a Netlify site-level plugin (via UI or API), NOT as an npm dependency in `package.json`. Having it as an npm dependency conflicts with Netlify's built-in runtime and causes `plugin_state=none`, resulting in no SSR functions and 404 on all routes. Both portal sites now have the plugin registered at the site level. Do not re-add it to `package.json`.
+6. **SUPABASE_SERVICE_ROLE_KEY placeholder in local .env.local** — Both local `.env.local` files have `SUPABASE_SERVICE_ROLE_KEY=REPLACE_WITH_SERVICE_ROLE_KEY`. This breaks all server-side Supabase queries locally. Must be replaced with the real key from Supabase dashboard for local development. The Netlify environment has the real key, so deployed sites work.
+
+---
+
+## v2.1 Testing Feedback (from Joshua, 26 March 2026)
+
+**These items must drive v2.2 planning. They are prioritised issues and architectural decisions.**
+
+### 1. Photo upload is too slow for users
+
+The current flow analyses the image with AI models *during upload* — the HOD waits for object detection and zero-shot classification before the upload completes. This is unacceptable for field users on mobile. **Fix:** Move all AI analysis to a background/post-submission process. The upload should store the image and HOD description immediately, then AI enrichment runs asynchronously on the backend after submission.
+
+### 2. Photos and drafts
+
+Confirm whether uploaded photos persist correctly when the form is saved as a draft and resumed later. The photo IDs are stored in the form data, but the UX flow for draft → resume → submit with photos needs validation.
+
+### 3. Daily digest model produces poor output
+
+The `facebook/bart-large-cnn` summarisation model is not fit for purpose. When a single report had `challenges_successes` of just "nothing", the digest output was nonsensical repetition: *"There is nothing to say. Nothing to say at all. Nothing at all to say about nothing..."*. A better model is needed — one that can handle sparse/trivial input gracefully and produce genuinely useful executive summaries from multiple department notes.
+
+### 4. Analysis needs a dedicated tab with time-period toggles
+
+The current "Today's Highlights" card on the admin overview is too limited. Replace it with a dedicated **Analysis tab** in the admin portal that supports:
+
+- **Per report** — analysis of a single report's content
+- **Per day** — aggregated analysis across all departments for one day
+- **Per week** — weekly trends and summary
+- **Per month** — monthly analysis with deeper insights
+
+**Critical rule:** A time period's analysis is only available after the period has concluded. March analysis becomes available on 1 April. This week's analysis becomes available next week. This prevents incomplete data from being analysed.
+
+### 5. Deeper cross-departmental analysis potential
+
+With a capable AI model, the system could analyse the structured data within each department's forms far more deeply:
+
+- **Compliance analysis** — patterns in late submissions, missed days, department reliability
+- **Visitor landscape** — Main Gate + Reception data combined to track people in and out (gate counts + check-ins/check-outs)
+- **Accommodation analysis** — Housekeeping room grid data for occupancy rates, room condition trends, maintenance patterns
+- **Food cost projections** — Kitchen inventory data for cost trending, consumption patterns, purchase forecasting
+- **Security trends** — Incident patterns, patrol coverage, fence/equipment damage frequency
+- **Cross-department action items** — AI-orchestrated work tracking between departments (e.g. Electrical repairs flagged by Housekeeping)
+
+### 6. AI model and platform decision needed
+
+The HF free tier is insufficient for the vision and analysis requirements above. Two options being considered:
+
+**Option A — Hugging Face Pro ($9/month)**
+Unlocks vision-language models (Qwen VL, Llama Vision) for proper image understanding. Better summarisation models. Still limited to what HF hosts.
+
+**Option B — Alternative AI platform**
+Use a platform that provides access to the best models for each task: vision analysis, text summarisation, structured data analysis, and eventually cross-departmental intelligence. Must support the eventual goal of a backend intelligence layer that orchestrates action items, tracks work done, projects food costs, and identifies trends across all departments.
+
+**Joshua's position:** Leaning towards HF Pro initially, but open to a different tool if it provides better model access for the full analytics vision. The choice should be made based on which platform best supports the end goal of deep, multi-layered departmental analysis — not just image captioning.
+
+### 7. Long-term vision: backend intelligence layer
+
+The ultimate goal is an AI-powered backend that:
+
+- Orchestrates action items between departments (damage reported by one department triggers a task for another)
+- Tracks work completion across departments
+- Projects food costs and purchase needs from Kitchen/Store inventory data
+- Identifies trends in visitor numbers, accommodation, security incidents
+- Provides executive-level summaries that are genuinely useful, not just parroted text
 
 ---
 
@@ -480,4 +547,4 @@ The deploy repos are standalone mirrors of the `portal/` and `admin-portal/` dir
 
 ---
 
-*Updated: 26 March 2026. v2.0 complete — all six phases (A, B, C, D, E, F) delivered.*
+*Updated: 26 March 2026. v2.0 in production. v2.1 (Phases A–I) built on dev branch. Ready for v2.2 planning based on testing feedback above.*
