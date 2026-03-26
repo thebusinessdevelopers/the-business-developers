@@ -678,4 +678,30 @@ Phase F is purely documentation. No source code modified, no migrations, no depl
 
 ---
 
-*Snapshot updated: 26 March 2026. v2.0 complete — all six phases (A, B, C, D, E, F) delivered.*
+---
+
+## Post-release hotfix — 26 March 2026
+
+### Admin portal report detail — RSC serialization error
+
+The admin report detail page (`/reports/[id]`) threw a server-side exception in production (React error digest `1034226636`). The Server Component passed an inline `onSuccess={() => {}}` arrow function to `FormRenderer` (a Client Component). Functions cannot cross the React Server Component boundary in Next.js 16 / React 19 production builds.
+
+**Fix:** Made `onSuccess` and `departmentId` optional in `FormRendererProps`, guarded call sites with optional chaining (`onSuccess?.()`), and removed both props from the readOnly `FormRenderer` call in `app/reports/[id]/page.tsx`.
+
+### Netlify 404 on all admin portal routes
+
+After initial deployment, every route on the admin portal returned Netlify's default 404 page. The `@netlify/plugin-nextjs` package was listed as an npm dependency in `package.json`, which conflicted with Netlify's site-level plugin system. The result: `plugin_state=none`, no serverless functions generated, no SSR routes served.
+
+**Fix:** Removed `@netlify/plugin-nextjs` from `package.json` and registered the plugin at the Netlify site level via the API (`pinned_version: '5'`), matching the working HOD portal configuration. Both sites now build with `plugin_state=success`.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `admin-portal/components/FormRenderer.tsx` | `onSuccess` and `departmentId` made optional, call sites guarded with `?.()` |
+| `admin-portal/app/reports/[id]/page.tsx` | Removed `onSuccess={() => {}}` and `departmentId=""` from readOnly FormRenderer call |
+| `admin-portal/package.json` | Removed `@netlify/plugin-nextjs` from dependencies |
+
+---
+
+*Snapshot updated: 26 March 2026. v2.0 complete — all six phases (A, B, C, D, E, F) delivered. Post-release hotfix applied.*
