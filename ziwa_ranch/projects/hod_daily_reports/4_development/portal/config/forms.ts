@@ -167,13 +167,9 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
           {
             name: 'bar_stock_count',
             label: 'Full bar stock count',
-            type: 'repeater',
+            type: 'inventory_grid',
             min_rows: 1,
-            sub_fields: [
-              { name: 'item', label: 'Item', type: 'text', placeholder: 'e.g. Tusker Lager, Bell Lager, Nile Special' },
-              { name: 'quantity', label: 'Qty', type: 'number' },
-              { name: 'unit', label: 'Unit', type: 'text', placeholder: 'e.g. bottles, crates' },
-            ],
+            inventory_grid_config: { category: 'beverage', showCost: false, showPrevious: true },
           },
         ],
       },
@@ -234,12 +230,8 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
           {
             name: 'beverage_sales',
             label: 'Beverages sold today',
-            type: 'repeater',
-            min_rows: 0,
-            sub_fields: [
-              { name: 'beverage', label: 'Beverage name', type: 'text', placeholder: 'e.g. Tusker, Bell, Nile Special, Soda', autocomplete: { category: 'beverage' } },
-              { name: 'quantity_sold', label: 'Qty sold', type: 'number' },
-            ],
+            type: 'inventory_grid',
+            inventory_grid_config: { category: 'beverage', showCost: false, showPrevious: true },
           },
         ],
       },
@@ -265,14 +257,9 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
           {
             name: 'kitchen_stock_count',
             label: 'Full kitchen stock count',
-            type: 'repeater',
+            type: 'inventory_grid',
             min_rows: 1,
-            sub_fields: [
-              { name: 'item', label: 'Item', type: 'text', placeholder: 'e.g. Rice 25kg, Cooking oil 5L, Chicken' },
-              { name: 'quantity', label: 'Qty', type: 'number' },
-              { name: 'unit', label: 'Unit', type: 'text', placeholder: 'e.g. kg, litres, pieces' },
-              { name: 'cost_per_unit', label: 'Cost per unit (UGX)', type: 'number' },
-            ],
+            inventory_grid_config: { category: 'kitchen_stock', showCost: true, showPrevious: true },
           },
         ],
       },
@@ -282,14 +269,8 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
           {
             name: 'stock_added',
             label: 'Stock received today',
-            type: 'repeater',
-            min_rows: 0,
-            sub_fields: [
-              { name: 'item', label: 'Item', type: 'text', placeholder: 'e.g. Tomatoes, Onions, Beef' },
-              { name: 'quantity', label: 'Qty', type: 'number' },
-              { name: 'unit', label: 'Unit', type: 'text', placeholder: 'e.g. kg, litres, pieces' },
-              { name: 'cost_per_unit', label: 'Cost per unit (UGX)', type: 'number' },
-            ],
+            type: 'inventory_grid',
+            inventory_grid_config: { category: 'kitchen_stock', showCost: true, showPrevious: false },
           },
         ],
       },
@@ -299,15 +280,10 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
           {
             name: 'stock_used',
             label: 'Stock used during service',
-            type: 'repeater',
+            type: 'inventory_grid',
             required: true,
             min_rows: 1,
-            sub_fields: [
-              { name: 'item', label: 'Item', type: 'text', placeholder: 'e.g. Rice, Cooking oil, Chicken' },
-              { name: 'quantity', label: 'Qty', type: 'number' },
-              { name: 'unit', label: 'Unit', type: 'text', placeholder: 'e.g. kg, litres, pieces' },
-              { name: 'cost_per_unit', label: 'Cost per unit (UGX)', type: 'number' },
-            ],
+            inventory_grid_config: { category: 'kitchen_stock', showCost: true, showPrevious: true },
           },
         ],
       },
@@ -345,6 +321,12 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
         ],
       },
       {
+        title: 'Photos',
+        fields: [
+          { name: 'photos', label: 'Attach photos', type: 'photo', photo_config: { maxPhotos: 5, categories: ['Equipment issue', 'Damaged item', 'Food waste', 'Maintenance needed', 'Record keeping', 'Other'] } },
+        ],
+      },
+      {
         title: 'Notes',
         fields: [
           { name: 'challenges_successes', label: 'Challenges or successes to note', type: 'textarea', placeholder: 'Any issues, highlights or observations from today...' },
@@ -369,6 +351,12 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
         title: 'Laundry',
         fields: [
           { name: 'laundry_notes', label: 'Laundry report', type: 'textarea', placeholder: 'Damaged clothes, incomplete items, any issues...' },
+        ],
+      },
+      {
+        title: 'Photos',
+        fields: [
+          { name: 'photos', label: 'Attach photos', type: 'photo', photo_config: { maxPhotos: 5, categories: ['Room damage', 'Maintenance needed', 'Cleanliness issue', 'Equipment issue', 'Record keeping', 'Other'] } },
         ],
       },
       {
@@ -451,6 +439,12 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
         ],
       },
       {
+        title: 'Photos',
+        fields: [
+          { name: 'photos', label: 'Attach photos', type: 'photo', photo_config: { maxPhotos: 5, categories: ['Security incident', 'Unregistered person', 'Road condition', 'Gate issue', 'Evidence', 'Record keeping', 'Other'] } },
+        ],
+      },
+      {
         title: 'Notes',
         fields: [
           { name: 'challenges_successes', label: 'Challenges or successes to note', type: 'textarea', placeholder: 'Any issues, highlights or observations from today...' },
@@ -472,13 +466,9 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
           {
             name: 'store_stock_count',
             label: 'Full store stock count',
-            type: 'repeater',
+            type: 'inventory_grid',
             min_rows: 1,
-            sub_fields: [
-              { name: 'item', label: 'Item', type: 'text', placeholder: 'e.g. Rice 25kg, Cooking oil 5L, Sugar' },
-              { name: 'quantity', label: 'Qty', type: 'number' },
-              { name: 'unit', label: 'Unit', type: 'text', placeholder: 'e.g. bags, litres, kg' },
-            ],
+            inventory_grid_config: { category: 'store_goods', showCost: false, showPrevious: true },
           },
         ],
       },
@@ -488,15 +478,17 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
           {
             name: 'goods_added',
             label: 'Goods received into store',
-            type: 'repeater',
+            type: 'inventory_grid',
             required: true,
             min_rows: 1,
-            sub_fields: [
-              { name: 'item', label: 'Item name', type: 'text', placeholder: 'e.g. Rice, Sugar, Cooking oil', autocomplete: { category: 'store_goods' } },
-              { name: 'supplier', label: 'Supplier', type: 'text', placeholder: 'e.g. Nakumatt, Local market' },
-              { name: 'quantity', label: 'Qty', type: 'number' },
-              { name: 'price_per_unit', label: 'Price per unit (UGX)', type: 'number' },
-            ],
+            inventory_grid_config: {
+              category: 'store_goods',
+              showCost: true,
+              showPrevious: false,
+              extraFields: [
+                { name: 'supplier', label: 'Supplier', type: 'text', placeholder: 'e.g. Nakumatt, Local market' },
+              ],
+            },
           },
         ],
       },
@@ -506,14 +498,17 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
           {
             name: 'goods_taken',
             label: 'Goods issued from store',
-            type: 'repeater',
+            type: 'inventory_grid',
             required: true,
             min_rows: 1,
-            sub_fields: [
-              { name: 'item', label: 'Item name', type: 'text', placeholder: 'e.g. Rice, Cooking oil', autocomplete: { category: 'store_goods' } },
-              { name: 'quantity', label: 'Qty', type: 'number' },
-              { name: 'taken_by', label: 'Taken by / Department', type: 'text', placeholder: 'e.g. Kitchen, Housekeeping' },
-            ],
+            inventory_grid_config: {
+              category: 'store_goods',
+              showCost: false,
+              showPrevious: false,
+              extraFields: [
+                { name: 'taken_by', label: 'Taken by / Department', type: 'text', placeholder: 'e.g. Kitchen, Housekeeping' },
+              ],
+            },
           },
         ],
       },
@@ -611,6 +606,12 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
         title: 'Work Planned for Tomorrow',
         fields: [
           { name: 'work_tomorrow', label: 'Planned work', type: 'textarea', required: true, placeholder: 'Project, what will be done, where...' },
+        ],
+      },
+      {
+        title: 'Photos',
+        fields: [
+          { name: 'photos', label: 'Attach photos', type: 'photo', photo_config: { maxPhotos: 5, categories: ['Fence damage', 'Completed repair', 'Power issue', 'Maintenance needed', 'Evidence', 'Record keeping', 'Other'] } },
         ],
       },
       {
@@ -1001,6 +1002,31 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
   },
 ]
 
+const GENERAL_PHOTO_SECTION = {
+  title: 'Photos',
+  fields: [
+    { name: 'photos', label: 'Attach photos (optional)', type: 'photo' as const, photo_config: { maxPhotos: 3, categories: ['Damage', 'Maintenance needed', 'Evidence', 'Record keeping', 'Other'] } },
+  ],
+}
+
 export function getFormBySlug(slug: string): DepartmentFormConfig | undefined {
-  return DEPARTMENT_FORMS.find((f) => f.slug === slug)
+  const form = DEPARTMENT_FORMS.find((f) => f.slug === slug)
+  if (!form) return undefined
+
+  const hasPhotoField = form.sections.some((s) =>
+    s.fields.some((f) => f.type === 'photo')
+  )
+  if (hasPhotoField) return form
+
+  const notesSectionIdx = form.sections.findIndex((s) =>
+    s.fields.some((f) => f.name === 'challenges_successes')
+  )
+  const sections = [...form.sections]
+  if (notesSectionIdx >= 0) {
+    sections.splice(notesSectionIdx, 0, GENERAL_PHOTO_SECTION)
+  } else {
+    sections.push(GENERAL_PHOTO_SECTION)
+  }
+
+  return { ...form, sections }
 }

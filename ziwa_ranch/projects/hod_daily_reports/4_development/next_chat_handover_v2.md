@@ -3,7 +3,9 @@
 > **Purpose:** Everything you need to continue building HOD Daily Reports v2. Load this file, follow the context loading instructions, then continue from where we left off.
 >
 > **Updated:** 26 March 2026
-> **Current version:** v2.0 complete — all six phases (A–F) delivered (HOD portal live at https://hoddailyreports.netlify.app)
+> **Current version:** v2.1 — Phases A–H built + Hugging Face AI integration, on dev branch
+> **Base version:** v2.0 complete — all six phases (A–F) delivered
+> **HOD portal:** https://hoddailyreports.netlify.app (live)
 > **Admin portal:** https://hod-admin-portal.netlify.app (live)
 
 ---
@@ -37,6 +39,20 @@ A major overhaul across six phases: authentication, a two-stage HOD hub, complia
 | **Phase D — Connectivity Resilience** | **Complete** | Dual-write drafts, submission queue with auto-retry, connectivity banner. |
 | **Phase E — Form Updates** | **Complete** | Housekeeping 20-room grid, Kitchen near-expired items, legacy report handling. |
 | **Phase F — Documentation** | **Complete** | All project docs updated, operational guides created, snapshot and handover finalised. |
+
+**v2.1 Phases (on dev branch):**
+
+| Phase | Status | Notes |
+|---|---|---|
+| **v2.1 Phase A — Photo Attachments** | **Built** | AI-powered photo uploads with naming convention, Supabase Storage, admin gallery, Drive sync script. |
+| **v2.1 Phase B — Inventory Grid** | **Built** | Tap-to-select grid for Kitchen, Store, F&B replaces stock repeaters. |
+| **v2.1 Phase C — Activity Log & Edit Logging** | **Built** | Admin activity page, server-side edit API, edit logging blind spot closed. |
+| **v2.1 Phase D — Password Self-Service** | **Built** | HOD password change at /account, admin password reset. |
+| **v2.1 Phase E — Announcements** | **Built** | Department-level admin notes visible on HOD hub. |
+| **v2.1 Phase F — Pre-fill** | **Built** | Start from previous report data on DepartmentHub. |
+| **v2.1 Phase G — Admin Overview** | **Built** | Last submitted date, multi-day gap warnings on dashboard. |
+| **v2.1 Phase H — Security & Fixes** | **Built** | Admin API auth (verifyAdminAuth), login redirect fix. |
+| **v2.1 Phase I — Hugging Face AI** | **Built** | Replaced OpenAI with HF Inference API. Multi-model photo pipeline, urgency detection on report notes, daily digest summary, admin urgency badges. Needs `HF_TOKEN` env var. |
 
 ---
 

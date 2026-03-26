@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminAuth } from '@/lib/admin-auth'
 import { createServerClient } from '@/lib/supabase-server'
 
 export async function GET(
@@ -6,6 +7,9 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    const authError = await verifyAdminAuth()
+    if (authError) return authError
+
     const { slug } = await params
     const category = request.nextUrl.searchParams.get('category')
     if (!category) {

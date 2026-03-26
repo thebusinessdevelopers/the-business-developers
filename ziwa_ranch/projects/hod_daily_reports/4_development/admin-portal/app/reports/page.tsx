@@ -26,7 +26,19 @@ interface ReportRow {
   acknowledged_at: string | null
   edited_at: string | null
   edit_history: unknown[] | null
+  ai_flags: { top_label?: string; top_score?: number } | null
   hod_departments: { name: string; slug: string }
+}
+
+function getUrgencyBadge(flags: ReportRow['ai_flags']): { label: string; classes: string } | null {
+  if (!flags?.top_label || !flags.top_score || flags.top_score < 0.4) return null
+  if (flags.top_label === 'urgent issue') {
+    return { label: 'Urgent', classes: 'bg-red-100 text-red-700 border-red-200' }
+  }
+  if (flags.top_label === 'maintenance needed') {
+    return { label: 'Maintenance', classes: 'bg-amber-100 text-amber-700 border-amber-200' }
+  }
+  return null
 }
 
 type ReviewDot = 'reviewed' | 'needs_rereview' | 'unreviewed'
@@ -64,7 +76,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
 
   let query = supabase
     .from('hod_daily_reports')
-    .select('id, department_id, submitted_by, report_date, submitted_at, acknowledged_at, edited_at, edit_history, hod_departments(name, slug)')
+    .select('id, department_id, submitted_by, report_date, submitted_at, acknowledged_at, edited_at, edit_history, ai_flags, hod_departments(name, slug)')
     .order('submitted_at', { ascending: false })
     .limit(200)
 
@@ -124,6 +136,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
         <ReportsTable
           reports={reports.map((r) => {
             const status = getSubmissionStatus(r.submitted_at, r.report_date)
+            const urgency = getUrgencyBadge(r.ai_flags)
             return {
               id: r.id,
               report_date: r.report_date,
@@ -136,6 +149,8 @@ export default async function ReportsPage({ searchParams }: PageProps) {
               statusLabel: getStatusLabel(status),
               statusBadgeClasses: getStatusBadgeClasses(status),
               dot: getReviewDot(r),
+              urgencyLabel: urgency?.label ?? null,
+              urgencyClasses: urgency?.classes ?? null,
             }
           })}
         />

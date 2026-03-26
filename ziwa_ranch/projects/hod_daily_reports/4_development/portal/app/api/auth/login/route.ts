@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     })
 
     const dept = user.department as unknown as { slug: string } | null
-    const redirectTo = user.role === 'admin' ? '/dashboard' : `/report/${dept?.slug ?? ''}`
+    const redirectTo = dept?.slug ? `/report/${dept.slug}` : '/'
 
     const response = NextResponse.json({
       success: true,

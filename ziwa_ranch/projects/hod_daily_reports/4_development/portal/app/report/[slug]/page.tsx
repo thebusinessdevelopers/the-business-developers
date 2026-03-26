@@ -54,6 +54,17 @@ export default async function ReportPage({ params }: PageProps) {
     .order('report_date', { ascending: false })
     .limit(10)
 
+  const now = new Date().toISOString()
+  const { data: announcements } = await supabase
+    .from('hod_announcements')
+    .select('id, title, body, priority, created_at')
+    .eq('active', true)
+    .or(`department_id.eq.${department.id},department_id.is.null`)
+    .or(`expires_at.is.null,expires_at.gt.${now}`)
+    .order('priority', { ascending: true })
+    .order('created_at', { ascending: false })
+    .limit(5)
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -74,6 +85,7 @@ export default async function ReportPage({ params }: PageProps) {
           departmentSlug={slug}
           departmentId={department.id}
           recentReports={recentReports ?? []}
+          announcements={(announcements ?? []) as { id: string; title: string; body: string; priority: string; created_at: string }[]}
         />
       </div>
     </main>

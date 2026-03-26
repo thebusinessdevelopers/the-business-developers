@@ -445,6 +445,29 @@ export default function FormRenderer({
   }
 
   function renderField(field: FormField) {
+    if (field.type === 'photo') {
+      const photos = Array.isArray(values[field.name]) ? values[field.name] as { id: string; ai_description?: string; hod_description?: string; category?: string; thumbnail_url?: string }[] : []
+      if (photos.length === 0) return null
+      return (
+        <div key={field.name} className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">{field.label}</label>
+          <div className="grid grid-cols-2 gap-3">
+            {photos.map((p) => (
+              <div key={p.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                {p.thumbnail_url && (
+                  <img src={p.thumbnail_url} alt={p.ai_description || p.hod_description || ''} className="w-full h-28 object-cover" />
+                )}
+                <div className="p-2">
+                  {p.ai_description && <p className="text-xs text-gray-700">{p.ai_description}</p>}
+                  {p.hod_description && <p className="text-xs text-gray-400 italic">&ldquo;{p.hod_description}&rdquo;</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
     if (field.type === 'room_grid') {
       const roomsVal = (values[field.name] ?? {}) as RoomsValue
       return (
@@ -604,6 +627,48 @@ export default function FormRenderer({
               {section.fields.map((field) => {
                 const val = values[field.name]
                 if (val === undefined || val === null || val === '') return null
+
+                if (field.type === 'inventory_grid' && Array.isArray(val) && val.length > 0) {
+                  return (
+                    <div key={field.name} className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700 mb-2">{field.label}</p>
+                      <div className="space-y-2">
+                        {(val as { item: string; quantity?: number; unit?: string; cost_per_unit?: number }[]).filter((v) => v.item).map((v, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                            <span className="text-sm text-gray-900 font-medium">{v.item}</span>
+                            <span className="text-sm text-gray-600">
+                              {v.quantity ?? 0} {v.unit ?? ''}
+                              {typeof v.cost_per_unit === 'number' && v.cost_per_unit > 0 && (
+                                <span className="text-gray-400 ml-2">@ {v.cost_per_unit.toLocaleString()} UGX</span>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                if (field.type === 'photo' && Array.isArray(val) && val.length > 0) {
+                  return (
+                    <div key={field.name} className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700">{field.label}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(val as { id: string; ai_description?: string; hod_description?: string; category?: string; thumbnail_url?: string }[]).map((p) => (
+                          <div key={p.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                            {p.thumbnail_url && (
+                              <img src={p.thumbnail_url} alt={p.ai_description || p.hod_description || ''} className="w-full h-28 object-cover" />
+                            )}
+                            <div className="p-2">
+                              {p.ai_description && <p className="text-xs text-gray-700">{p.ai_description}</p>}
+                              {p.hod_description && <p className="text-xs text-gray-400 italic">&ldquo;{p.hod_description}&rdquo;</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
 
                 if (field.type === 'room_grid' && val && typeof val === 'object' && !Array.isArray(val)) {
                   return (

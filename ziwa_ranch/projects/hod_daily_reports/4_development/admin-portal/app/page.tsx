@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase-server'
 import { getSubmissionStatus, getKampalaDateStr, getExpectedReportingDays } from '@/lib/submission-status'
+import DailyDigestCard from '@/components/DailyDigestCard'
 
 interface DeptRow {
   id: string
@@ -17,6 +18,15 @@ interface ReportRow {
   submitted_by: string
   report_date: string
   submitted_at: string
+  ai_flags: { top_label?: string; top_score?: number } | null
+}
+
+function isUrgent(flags: ReportRow['ai_flags']): boolean {
+  return !!flags?.top_label && flags.top_label === 'urgent issue' && (flags.top_score ?? 0) >= 0.4
+}
+
+function needsMaintenance(flags: ReportRow['ai_flags']): boolean {
+  return !!flags?.top_label && flags.top_label === 'maintenance needed' && (flags.top_score ?? 0) >= 0.4
 }
 
 function countLate(reports: ReportRow[]): number {
@@ -48,7 +58,7 @@ export default async function DashboardHome() {
 
   const { data: reports } = await supabase
     .from('hod_daily_reports')
-    .select('id, department_id, submitted_by, report_date, submitted_at')
+    .select('id, department_id, submitted_by, report_date, submitted_at, ai_flags')
     .gte('report_date', thirtyStr)
 
   const depts = (departments ?? []) as DeptRow[]
@@ -67,6 +77,15 @@ export default async function DashboardHome() {
     const warning7 = countWarning(last7)
     const late30 = countLate(dr)
 
+    const sortedDates = [...new Set(dr.map((r) => r.report_date))].sort().reverse()
+    const lastReportDate = sortedDates[0] ?? null
+    let daysSinceLast = 0
+    if (lastReportDate) {
+      const lastMs = new Date(lastReportDate + 'T12:00:00Z').getTime()
+      const todayMs = new Date(today + 'T12:00:00Z').getTime()
+      daysSinceLast = Math.round((todayMs - lastMs) / (86400 * 1000))
+    }
+
     return {
       ...dept,
       submittedToday: !!todayReport,
@@ -76,6 +95,8 @@ export default async function DashboardHome() {
       late7,
       warning7,
       late30,
+      lastReportDate,
+      daysSinceLast,
     }
   })
 
@@ -85,6 +106,10 @@ export default async function DashboardHome() {
   const totalLate30 = stats.reduce((sum, s) => sum + s.late30, 0)
   const totalReports7 = allReports.filter((r) => r.report_date >= sevenStr).length
   const totalReports30 = allReports.length
+
+  const todayReports = allReports.filter((r) => r.report_date === today)
+  const urgentToday = todayReports.filter((r) => isUrgent(r.ai_flags)).length
+  const maintenanceToday = todayReports.filter((r) => needsMaintenance(r.ai_flags)).length
 
   return (
     <div className="space-y-10">
@@ -121,6 +146,31 @@ export default async function DashboardHome() {
         </div>
       </div>
 
+      {(urgentToday > 0 || maintenanceToday > 0) && (
+        <div className="flex gap-4">
+          {urgentToday > 0 && (
+            <div className="bg-red-50 rounded-xl border border-red-200 px-5 py-3 flex items-center gap-3">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
+              <div>
+                <p className="text-sm font-semibold text-red-800">{urgentToday} urgent report{urgentToday !== 1 ? 's' : ''} today</p>
+                <p className="text-xs text-red-500">AI-flagged from HOD notes</p>
+              </div>
+            </div>
+          )}
+          {maintenanceToday > 0 && (
+            <div className="bg-amber-50 rounded-xl border border-amber-200 px-5 py-3 flex items-center gap-3">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800">{maintenanceToday} maintenance request{maintenanceToday !== 1 ? 's' : ''} today</p>
+                <p className="text-xs text-amber-500">AI-flagged from HOD notes</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <DailyDigestCard />
+
       <section>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Today&apos;s Status</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -137,7 +187,17 @@ export default async function DashboardHome() {
               {dept.submittedToday ? (
                 <p className="text-xs text-green-700 mt-1">Submitted by {dept.todayBy}</p>
               ) : (
-                <p className="text-xs text-red-600 mt-1">Not yet submitted</p>
+                <>
+                  <p className="text-xs text-red-600 mt-1">Not yet submitted</p>
+                  {dept.lastReportDate && (
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Last: {new Date(dept.lastReportDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Africa/Kampala' })}
+                      {dept.daysSinceLast >= 3 && (
+                        <span className="text-red-500 font-medium ml-1">({dept.daysSinceLast}d gap)</span>
+                      )}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           ))}

@@ -8,6 +8,7 @@ import { getSubmissionStatus, getStatusLabel, getStatusBadgeClasses } from '@/li
 import { EditHistoryEntry } from '@/types'
 import EditHistory from '@/components/EditHistory'
 import FormRenderer from '@/components/FormRenderer'
+import PhotoGallery, { type MediaItem } from '@/components/PhotoGallery'
 import AcknowledgeButton from './AcknowledgeButton'
 import DeleteReportButton from './DeleteReportButton'
 
@@ -62,6 +63,14 @@ export default async function ReportDetailPage({ params }: PageProps) {
     .single()
 
   if (!report) notFound()
+
+  const { data: reportMedia } = await supabase
+    .from('hod_report_media')
+    .select('id, storage_path, generated_filename, hod_description, ai_description, ai_tags, context_category, created_at')
+    .eq('report_id', id)
+    .order('created_at')
+
+  const media = (reportMedia ?? []) as MediaItem[]
 
   const r = report as unknown as ReportData
   const status = getSubmissionStatus(r.submitted_at, r.report_date)
@@ -123,6 +132,15 @@ export default async function ReportDetailPage({ params }: PageProps) {
           <pre className="text-sm text-gray-700 bg-gray-50 rounded-lg p-4 overflow-auto">
             {JSON.stringify(r.report_data, null, 2)}
           </pre>
+        </div>
+      )}
+
+      {media.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mt-6">
+          <PhotoGallery
+            media={media}
+            supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
+          />
         </div>
       )}
 

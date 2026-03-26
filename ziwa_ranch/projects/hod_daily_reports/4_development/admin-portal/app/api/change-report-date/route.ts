@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
+import { verifyAdminAuth } from '@/lib/admin-auth'
 import { createServerClient } from '@/lib/supabase-server'
 
 export async function POST(request: Request) {
   try {
+    const authError = await verifyAdminAuth()
+    if (authError) return authError
+
     const { reportId, newDate } = await request.json()
 
     if (!reportId || !newDate) {

@@ -8,12 +8,12 @@ import NewReportForm from './NewReportForm'
 
 interface PageProps {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ date?: string }>
+  searchParams: Promise<{ date?: string; prefill?: string }>
 }
 
 export default async function NewReportPage({ params, searchParams }: PageProps) {
   const { slug } = await params
-  const { date } = await searchParams
+  const { date, prefill } = await searchParams
 
   const formConfig = getFormBySlug(slug)
   if (!formConfig) notFound()
@@ -50,6 +50,24 @@ export default async function NewReportPage({ params, searchParams }: PageProps)
     redirect(`/report/${slug}/edit/${existingReport.id}`)
   }
 
+  let prefillData: Record<string, unknown> | null = null
+  if (prefill === '1') {
+    const { data: latestReport } = await supabase
+      .from('hod_daily_reports')
+      .select('report_data')
+      .eq('department_id', department.id)
+      .order('report_date', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (latestReport?.report_data) {
+      const raw = latestReport.report_data as Record<string, unknown>
+      prefillData = { ...raw }
+      // Strip photo data — don't carry forward uploaded images
+      delete prefillData.photos
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -74,11 +92,18 @@ export default async function NewReportPage({ params, searchParams }: PageProps)
           </p>
         </div>
 
+        {prefillData && (
+          <div className="mb-4 border border-blue-200 bg-blue-50 rounded-lg px-4 py-2">
+            <p className="text-sm text-blue-700">Pre-filled from your most recent report. Review and update before submitting.</p>
+          </div>
+        )}
+
         <NewReportForm
           config={formConfig}
           departmentId={department.id}
           departmentSlug={slug}
           lockedDate={date}
+          prefillData={prefillData}
         />
       </div>
     </main>

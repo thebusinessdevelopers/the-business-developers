@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminAuth } from '@/lib/admin-auth'
 import { createServerClient } from '@/lib/supabase-server'
 
 interface HarvestRule {
@@ -39,6 +40,9 @@ const HARVEST_RULES: HarvestRule[] = [
 
 export async function POST(request: NextRequest) {
   try {
+    const authError = await verifyAdminAuth()
+    if (authError) return authError
+
     const body = await request.json()
     const reportId = body.reportId as string
     if (!reportId) {

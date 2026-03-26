@@ -10,6 +10,7 @@ interface NewReportFormProps {
   departmentId: string
   departmentSlug: string
   lockedDate: string
+  prefillData?: Record<string, unknown> | null
 }
 
 export default function NewReportForm({
@@ -17,6 +18,7 @@ export default function NewReportForm({
   departmentId,
   departmentSlug,
   lockedDate,
+  prefillData,
 }: NewReportFormProps) {
   const [submitted, setSubmitted] = useState(false)
   const [lastReportId, setLastReportId] = useState<string | null>(null)
@@ -72,6 +74,7 @@ export default function NewReportForm({
       }}
       lockedDate={lockedDate}
       stockProjection={stockProjection}
+      initialValues={prefillData ?? undefined}
     />
   )
 }

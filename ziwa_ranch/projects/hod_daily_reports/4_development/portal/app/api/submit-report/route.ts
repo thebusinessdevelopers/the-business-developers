@@ -2,6 +2,45 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { validateSession, logActivity } from '@/lib/auth'
 import { createServerClient } from '@/lib/supabase-server'
+import { getHfClient } from '@/lib/hf'
+
+const URGENCY_LABELS = ['urgent issue', 'maintenance needed', 'routine observation', 'positive highlight']
+
+async function detectUrgency(reportId: string, text: string) {
+  if (!text || text.trim().length < 10) return
+  try {
+    const hf = getHfClient()
+    const result = await hf.zeroShotClassification({
+      model: 'facebook/bart-large-mnli',
+      inputs: text.trim(),
+      parameters: { candidate_labels: URGENCY_LABELS },
+    })
+
+    const top = Array.isArray(result) ? result[0] : null
+    if (!top) return
+
+    const labels = (top as { labels?: string[] }).labels ?? []
+    const scores = (top as { scores?: number[] }).scores ?? []
+
+    const flags: Record<string, unknown> = {
+      top_label: labels[0] ?? null,
+      top_score: scores[0] ?? null,
+      labels: labels.reduce((acc: Record<string, number>, label: string, i: number) => {
+        acc[label] = scores[i] ?? 0
+        return acc
+      }, {} as Record<string, number>),
+      analysed_at: new Date().toISOString(),
+    }
+
+    const supabase = createServerClient()
+    await supabase
+      .from('hod_daily_reports')
+      .update({ ai_flags: flags })
+      .eq('id', reportId)
+  } catch (err) {
+    console.error('Urgency detection failed (non-blocking):', err)
+  }
+}
 
 const SESSION_COOKIE = 'hod_session'
 const GUEST_COOKIE = 'hod_guest'
@@ -106,6 +145,25 @@ export async function POST(request: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reportId: reportRow.id }),
       }).catch(() => {})
+
+      // Link uploaded photos to this report
+      const photoData = reportData.photos
+      if (Array.isArray(photoData) && photoData.length > 0) {
+        const mediaIds = photoData
+          .map((p: Record<string, unknown>) => p.id)
+          .filter(Boolean) as string[]
+        if (mediaIds.length > 0) {
+          Promise.resolve(
+            supabase
+              .from('hod_report_media')
+              .update({ report_id: reportRow.id })
+              .in('id', mediaIds)
+          ).catch(() => {})
+        }
+      }
+
+      const challengesText = String(reportData.challenges_successes ?? '')
+      detectUrgency(reportRow.id, challengesText).catch(() => {})
     }
 
     logActivity(userId, 'report_submitted', {
@@ -121,7 +179,8 @@ export async function POST(request: NextRequest) {
     const errObj = err as { code?: string; message?: string; details?: string } | null
     console.error('Submit report error:', errObj)
 
-    fetch('/api/log-error', {
+    const origin = request.nextUrl.origin
+    fetch(`${origin}/api/log-error`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -27,17 +27,27 @@ interface RecentReport {
   edit_history: unknown[] | null
 }
 
+interface Announcement {
+  id: string
+  title: string
+  body: string
+  priority: string
+  created_at: string
+}
+
 interface DepartmentHubProps {
   departmentName: string
   departmentSlug: string
   departmentId: string
   recentReports: RecentReport[]
+  announcements?: Announcement[]
 }
 
 export default function DepartmentHub({
   departmentName,
   departmentSlug,
   recentReports,
+  announcements = [],
 }: DepartmentHubProps) {
   const router = useRouter()
   const [showWarning, setShowWarning] = useState(false)
@@ -52,13 +62,15 @@ export default function DepartmentHub({
     [recentReports]
   )
 
-  function handleDateButton(date: string) {
+  function handleDateButton(date: string, prefill = false) {
     if (date === todayKampala && kampalaHour < 16) {
       setPendingDate(date)
       setShowWarning(true)
       return
     }
-    router.push(`/report/${departmentSlug}/new?date=${date}`)
+    const params = new URLSearchParams({ date })
+    if (prefill) params.set('prefill', '1')
+    router.push(`/report/${departmentSlug}/new?${params.toString()}`)
   }
 
   function confirmToday() {
@@ -77,10 +89,38 @@ export default function DepartmentHub({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{departmentName}</h1>
-        <p className="text-sm text-gray-500 mt-1">Choose a date to submit or view a report.</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{departmentName}</h1>
+          <p className="text-sm text-gray-500 mt-1">Choose a date to submit or view a report.</p>
+        </div>
+        <Link
+          href="/account"
+          className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-md px-2 py-1 hover:bg-gray-50 transition-colors"
+        >
+          Account
+        </Link>
       </div>
+
+      {/* Announcements */}
+      {announcements.length > 0 && (
+        <div className="space-y-2">
+          {announcements.map((a) => {
+            const style =
+              a.priority === 'urgent'
+                ? 'border-red-300 bg-red-50 text-red-800'
+                : a.priority === 'important'
+                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                : 'border-blue-200 bg-blue-50 text-blue-800'
+            return (
+              <div key={a.id} className={`border rounded-lg px-4 py-3 ${style}`}>
+                <p className="text-sm font-semibold">{a.title}</p>
+                <p className="text-sm mt-0.5 opacity-90">{a.body}</p>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Smart date buttons */}
       <div className="space-y-3">
@@ -129,26 +169,35 @@ export default function DepartmentHub({
           }
 
           return (
-            <button
-              key={btn.date}
-              onClick={() => handleDateButton(btn.date)}
-              className={`w-full text-left rounded-xl border p-4 transition-colors ${
-                btn.priority === 'primary'
-                  ? 'border-ziwa-300 bg-ziwa-50 hover:bg-ziwa-100'
-                  : btn.priority === 'secondary'
-                  ? 'border-gray-200 bg-white hover:bg-gray-50'
-                  : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
-              }`}
-            >
-              <p className={`text-sm font-semibold ${
-                btn.priority === 'primary' ? 'text-ziwa-700' : 'text-gray-700'
-              }`}>
-                {btn.label}
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {formatDateKampala(btn.date)}
-              </p>
-            </button>
+            <div key={btn.date} className={`rounded-xl border p-4 transition-colors ${
+              btn.priority === 'primary'
+                ? 'border-ziwa-300 bg-ziwa-50'
+                : btn.priority === 'secondary'
+                ? 'border-gray-200 bg-white'
+                : 'border-gray-200 bg-gray-50'
+            }`}>
+              <button
+                onClick={() => handleDateButton(btn.date)}
+                className="w-full text-left"
+              >
+                <p className={`text-sm font-semibold ${
+                  btn.priority === 'primary' ? 'text-ziwa-700' : 'text-gray-700'
+                }`}>
+                  {btn.label}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {formatDateKampala(btn.date)}
+                </p>
+              </button>
+              {recentReports.length > 0 && (
+                <button
+                  onClick={() => handleDateButton(btn.date, true)}
+                  className="mt-2 text-xs text-ziwa-500 hover:text-ziwa-700 font-medium"
+                >
+                  Start from previous report
+                </button>
+              )}
+            </div>
           )
         })}
       </div>

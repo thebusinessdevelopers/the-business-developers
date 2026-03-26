@@ -16,6 +16,8 @@ interface ReportForTable {
   statusLabel: string
   statusBadgeClasses: string
   dot: 'reviewed' | 'needs_rereview' | 'unreviewed'
+  urgencyLabel: string | null
+  urgencyClasses: string | null
 }
 
 const DOT_CLASSES = {
@@ -241,6 +243,11 @@ export default function ReportsTable({ reports }: { reports: ReportForTable[] })
                 <td className="px-4 py-3 text-gray-700">
                   {r.department_name}
                   <span className={`ml-2 inline-block w-2 h-2 rounded-full ${DOT_CLASSES[r.dot]}`} title={DOT_TITLES[r.dot]} />
+                  {r.urgencyLabel && (
+                    <span className={`ml-2 inline-block text-[10px] font-semibold border rounded px-1.5 py-0.5 ${r.urgencyClasses}`}>
+                      {r.urgencyLabel}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{r.submitted_by}</td>
                 <td className="px-4 py-3 text-gray-400 hidden md:table-cell">{formatTime(r.submitted_at)}</td>

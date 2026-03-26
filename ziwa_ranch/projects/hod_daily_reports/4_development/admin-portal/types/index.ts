@@ -21,7 +21,7 @@ export interface HodSession {
   user?: HodUser
 }
 
-export type FieldType = 'text' | 'textarea' | 'number' | 'repeater' | 'checkbox_group' | 'select' | 'room_grid'
+export type FieldType = 'text' | 'textarea' | 'number' | 'repeater' | 'checkbox_group' | 'select' | 'room_grid' | 'photo' | 'inventory_grid'
 
 export interface SubField {
   name: string
@@ -30,6 +30,11 @@ export interface SubField {
   placeholder?: string
   options?: string[]
   autocomplete?: { category: string }
+}
+
+export interface PhotoConfig {
+  maxPhotos: number
+  categories: string[]
 }
 
 export interface FormField {
@@ -42,6 +47,7 @@ export interface FormField {
   sub_fields?: SubField[]
   min_rows?: number
   stepper?: boolean
+  photo_config?: PhotoConfig
 }
 
 export interface FormSection {

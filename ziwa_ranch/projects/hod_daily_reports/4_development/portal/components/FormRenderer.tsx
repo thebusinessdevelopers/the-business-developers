@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { DepartmentFormConfig, FormField, EditHistoryEntry } from '@/types'
+import { DepartmentFormConfig, FormField } from '@/types'
 import RepeaterField from './RepeaterField'
 import NumberStepper from './NumberStepper'
 import StockProjectionDisplay from './StockProjectionDisplay'
@@ -12,6 +12,8 @@ import { useDraftManager, type DraftData } from '@/hooks/useDraftManager'
 import { useSubmissionQueue } from '@/hooks/useSubmissionQueue'
 import RoomGrid, { type RoomsValue, type RoomData } from './RoomGrid'
 import { ALL_ROOMS } from '@/config/rooms'
+import PhotoUploader, { type UploadedPhoto } from './PhotoUploader'
+import InventoryGrid, { type ActiveItem, type ExtraFieldDef } from './InventoryGrid'
 
 interface FormRendererProps {
   config: DepartmentFormConfig
@@ -37,34 +39,7 @@ type FormValues = Record<string, unknown>
 const inputClass =
   'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ziwa-500 focus:border-transparent'
 
-function diffValues(
-  oldVals: Record<string, unknown>,
-  newVals: Record<string, unknown>,
-  config: DepartmentFormConfig
-): { field: string; old_value: unknown; new_value: unknown }[] {
-  const changes: { field: string; old_value: unknown; new_value: unknown }[] = []
-  const allKeys = new Set([...Object.keys(oldVals), ...Object.keys(newVals)])
 
-  const labelMap = new Map<string, string>()
-  for (const section of config.sections) {
-    for (const field of section.fields) {
-      labelMap.set(field.name, field.label)
-    }
-  }
-
-  for (const key of allKeys) {
-    const oldVal = oldVals[key]
-    const newVal = newVals[key]
-    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-      changes.push({
-        field: labelMap.get(key) || key,
-        old_value: oldVal ?? null,
-        new_value: newVal ?? null,
-      })
-    }
-  }
-  return changes
-}
 
 export default function FormRenderer({
   config,
@@ -263,42 +238,30 @@ export default function FormRenderer({
 
     try {
       if (effectiveEditMode && effectiveEditReportId) {
-        const { supabase } = await import('@/lib/supabase')
-        const baseValues = inlineEditMode ? (existingReport?.report_data ?? {}) : (initialValues ?? {})
-        const changes = diffValues(baseValues, values, config)
-        if (changes.length === 0) {
+        const res = await fetch('/api/edit-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reportId: effectiveEditReportId,
+            reportData: values,
+            submittedBy,
+          }),
+        })
+
+        const result = await res.json()
+
+        if (!res.ok) {
+          setError(result.error || 'Failed to save edit.')
+          setSubmitting(false)
+          return
+        }
+
+        if (result.noChanges) {
           setError('No changes detected.')
           setSubmitting(false)
           return
         }
 
-        const { data: existing } = await supabase
-          .from('hod_daily_reports')
-          .select('edit_history')
-          .eq('id', effectiveEditReportId)
-          .single()
-
-        const prevHistory = (existing?.edit_history as EditHistoryEntry[] | null) ?? []
-        const newEntry: EditHistoryEntry = {
-          edited_by: editorName ?? submittedBy,
-          edited_at: new Date().toISOString(),
-          changes,
-        }
-
-        const { error: updateError } = await supabase
-          .from('hod_daily_reports')
-          .update({
-            report_data: values,
-            edited_at: new Date().toISOString(),
-            last_edited_by: editorName ?? submittedBy,
-            edit_history: [...prevHistory, newEntry],
-            acknowledged_at: null,
-            acknowledged_by: null,
-            review_comments: null,
-          })
-          .eq('id', effectiveEditReportId)
-
-        if (updateError) throw updateError
         onSuccess(effectiveEditReportId)
         return
       }
@@ -377,6 +340,47 @@ export default function FormRenderer({
 
   function renderField(field: FormField) {
     const disabled = readOnly || (viewingExisting && !inlineEditMode)
+
+    if (field.type === 'inventory_grid') {
+      const items = (Array.isArray(values[field.name]) ? values[field.name] : []) as ActiveItem[]
+      const cfg = field.inventory_grid_config ?? { category: 'general', showCost: false, showPrevious: true }
+      return (
+        <div key={field.name} className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">{field.label}</label>
+          <InventoryGrid
+            departmentSlug={config.slug}
+            category={cfg.category}
+            showCost={cfg.showCost}
+            showPrevious={cfg.showPrevious}
+            extraFields={(cfg.extraFields ?? []) as ExtraFieldDef[]}
+            minItems={field.min_rows ?? 0}
+            value={items}
+            onChange={disabled ? () => {} : (updated) => setValue(field.name, updated)}
+            readOnly={disabled}
+          />
+        </div>
+      )
+    }
+
+    if (field.type === 'photo') {
+      const photos = (Array.isArray(values[field.name]) ? values[field.name] : []) as UploadedPhoto[]
+      const cfg = field.photo_config ?? { maxPhotos: 5, categories: ['Damage', 'Maintenance needed', 'Evidence', 'Record keeping', 'Other'] }
+      return (
+        <div key={field.name} className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">{field.label}</label>
+          <PhotoUploader
+            departmentSlug={config.slug}
+            departmentId={departmentId}
+            reportDate={reportDate}
+            categories={cfg.categories}
+            maxPhotos={cfg.maxPhotos}
+            value={photos}
+            onChange={disabled ? () => {} : (updated) => setValue(field.name, updated)}
+            readOnly={disabled}
+          />
+        </div>
+      )
+    }
 
     if (field.type === 'room_grid') {
       const roomsVal = (values[field.name] ?? {}) as RoomsValue
