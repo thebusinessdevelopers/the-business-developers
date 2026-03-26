@@ -99,6 +99,8 @@ Everything in Standard, then:
 | Hosting | Netlify — HOD: `3e5bb9b4-c0b2-4031-9f28-0132cbb1d303`, Admin: `d501089b-06cc-4d50-84eb-cb5ab4890b9b` |
 | Repository (monorepo) | `https://github.com/thebusinessdevelopers/the-business-developers` |
 | Repository (HOD deploy) | `https://github.com/thebusinessdevelopers/hod_daily_reports` |
+| Repository (Admin deploy) | `https://github.com/thebusinessdevelopers/hod_admin_portal` |
+| Branching | `main` = production, `dev` = development preview (all three repos) |
 
 ## Recent changes
 
@@ -116,3 +118,4 @@ Everything in Standard, then:
 - 26/03/2026 — **v2.0 Phase D complete.** Connectivity resilience: dual-write drafts (Supabase + localStorage), submission queue with automatic retry on reconnect, connectivity banner. No PWA or service worker — browser APIs only. No database changes.
 - 26/03/2026 — **v2.0 Phase E complete.** Form updates: Housekeeping 20-room grid (grouped by building, conditional Vacant/Occupied fields), Kitchen near-expired items repeater, legacy report handling in admin portal. No database changes.
 - 26/03/2026 — **v2.0 Phase F complete.** Documentation: updated context.md, project_summary.md, build_rules.md. Created HOD user guide and admin guide in `5_operation/`. Finalised snapshot and handover.
+- 26/03/2026 — **Deployment and branching setup.** Both portals now deploy from GitHub via Netlify. Admin portal repo created (`hod_admin_portal`). Dev/prod branching on all repos — `main` for production, `dev` for development previews.

@@ -8,7 +8,7 @@
 > **Phase D added:** 26 March 2026
 > **Phase E added:** 26 March 2026
 > **Phase F added:** 26 March 2026
-> **Status:** v2.0 complete. HOD portal live at [hoddailyreports.netlify.app](https://hoddailyreports.netlify.app). Admin portal pending Netlify deployment.
+> **Status:** v2.0 complete. Both portals live — HOD at [hoddailyreports.netlify.app](https://hoddailyreports.netlify.app), Admin at [hod-admin-portal.netlify.app](https://hod-admin-portal.netlify.app).
 > **Base version:** v1.9 (see `versions/v1.9/snapshot.md`)
 
 ---
@@ -643,8 +643,8 @@ The `config/login-users.ts` file defines the UI roster (which buttons appear on 
 
 | Application | Hosting | URL | Status |
 |---|---|---|---|
-| HOD Portal | Netlify (project `3e5bb9b4-c0b2-4031-9f28-0132cbb1d303`) | https://hoddailyreports.netlify.app | Live (deploys from separate GitHub repo) |
-| Admin Portal | Netlify (project `d501089b-06cc-4d50-84eb-cb5ab4890b9b`) | https://hod-admin-portal.netlify.app | Site created, env vars set, deployment pending |
+| HOD Portal | Netlify (project `3e5bb9b4-c0b2-4031-9f28-0132cbb1d303`) | https://hoddailyreports.netlify.app | Live — auto-deploys from `thebusinessdevelopers/hod_daily_reports` `main` branch |
+| Admin Portal | Netlify (project `d501089b-06cc-4d50-84eb-cb5ab4890b9b`) | https://hod-admin-portal.netlify.app | Live — deploys from `thebusinessdevelopers/hod_admin_portal` `main` branch |
 
 ### Environment variables (both sites)
 

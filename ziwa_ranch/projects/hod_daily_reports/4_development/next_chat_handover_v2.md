@@ -4,7 +4,7 @@
 >
 > **Updated:** 26 March 2026
 > **Current version:** v2.0 complete — all six phases (A–F) delivered (HOD portal live at https://hoddailyreports.netlify.app)
-> **Admin portal:** https://hod-admin-portal.netlify.app (Netlify site created, env vars set, deployment pending)
+> **Admin portal:** https://hod-admin-portal.netlify.app (live)
 
 ---
 
@@ -91,7 +91,7 @@ The HOD-facing reporting tool. Login picker -> Department hub -> Report form.
 
 **Live at:** https://hoddailyreports.netlify.app
 **Netlify project:** `3e5bb9b4-c0b2-4031-9f28-0132cbb1d303`
-**Deploys from:** GitHub repo `thebusinessdevelopers/hod_daily_reports` (separate from this monorepo)
+**Deploys from:** GitHub repo `thebusinessdevelopers/hod_daily_reports` — `main` branch auto-deploys to production, `dev` branch deploys to `dev--hoddailyreports.netlify.app`
 
 **Routes:**
 
@@ -151,9 +151,9 @@ The HOD-facing reporting tool. Login picker -> Department hub -> Report form.
 
 The admin dashboard for reviewing reports, tracking compliance, managing stock, and viewing errors.
 
-**URL:** https://hod-admin-portal.netlify.app
+**Live at:** https://hod-admin-portal.netlify.app
 **Netlify project:** `d501089b-06cc-4d50-84eb-cb5ab4890b9b`
-**Deployment:** Pending — site created, env vars set, CLI deploy was interrupted. Needs `netlify deploy --prod` from the admin-portal directory, or connect to a GitHub repo for auto-deploy.
+**Deploys from:** GitHub repo `thebusinessdevelopers/hod_admin_portal` — `main` branch auto-deploys to production, `dev` branch deploys to `dev--hod-admin-portal.netlify.app`
 
 **Authentication:** Single `ADMIN_PASSWORD` env var, HMAC cookie. No individual user identity.
 
@@ -189,6 +189,8 @@ The admin dashboard for reviewing reports, tracking compliance, managing stock, 
 | Admin live URL | https://hod-admin-portal.netlify.app |
 | Repository (monorepo) | https://github.com/thebusinessdevelopers/the-business-developers |
 | Repository (HOD deploy) | https://github.com/thebusinessdevelopers/hod_daily_reports |
+| Repository (Admin deploy) | https://github.com/thebusinessdevelopers/hod_admin_portal |
+| Branching | `main` = production, `dev` = development (both deploy repos and monorepo) |
 
 ### Database migrations (applied)
 
@@ -266,7 +268,7 @@ All accounts use password `ziwa2026`. Usernames follow `department.firstname` pa
 
 ## Known issues and pending items
 
-1. **Admin portal deployment** — Netlify site `hod-admin-portal` is created with env vars set, but the production deploy was interrupted. Run `netlify deploy --prod` from the `admin-portal/` directory or connect to GitHub for auto-deploy.
+1. **Admin portal GitHub App access** — The Netlify GitHub App needs to be granted access to the `hod_admin_portal` repo for auto-deploys to work. Go to GitHub > Settings > Integrations > Applications > Netlify > Configure, and add `hod_admin_portal` to the list of accessible repositories. Until this is done, admin deploys must use `netlify deploy --build --prod` from the CLI.
 2. **Admin login redirect** — The HOD portal's `/api/auth/login` route returns `redirectTo: '/dashboard'` for admin-role users, but there is no `/dashboard` route in the HOD portal (it was removed during cleanup). Admin users logging into the HOD portal should be redirected to `/report/[slug]` or the admin portal URL instead.
 3. **Admin portal FormRenderer** — The admin portal's `FormRenderer.tsx` is a copy from before Phase B. It still uses direct Supabase inserts, does not have the draft hook, and calls `/api/log-error` which does not exist in the admin portal. The admin portal only uses FormRenderer for edits (not new submissions), so this is non-breaking but the copy is now out of sync. Phase C added `readOnly` support.
 4. **Shared code sync** — The two applications share `config/forms.ts`, `config/rooms.ts`, `components/FormRenderer.tsx`, `components/RoomGrid.tsx`, `lib/submission-status.ts`, and other files as copies. Phase C synced `submission-status.ts`. Phase E synced `forms.ts`, `rooms.ts`, `RoomGrid.tsx`, and `types/index.ts`. `FormRenderer.tsx` remains structurally out of sync (admin version lacks draft hook and server-side submission but this is acceptable since admin only uses it for edits; both versions now handle `room_grid`).
@@ -416,6 +418,28 @@ Updated all stale project documentation and created new operational guides:
 - [x] `5_operation/hod_user_guide.md` exists and covers login, submit, draft, edit, offline, guest
 - [x] `5_operation/admin_guide.md` exists and covers review, compliance, stock, WhatsApp, edit/delete
 - [x] Snapshot and handover both show Phase F as complete
+
+---
+
+## Deployment workflow
+
+Both applications use a `main`/`dev` branching strategy across three GitHub repos:
+
+| Repo | Purpose | Production | Dev preview |
+|---|---|---|---|
+| `thebusinessdevelopers/the-business-developers` | Monorepo (docs + source) | `main` branch | `dev` branch |
+| `thebusinessdevelopers/hod_daily_reports` | HOD portal deploy | `main` → hoddailyreports.netlify.app | `dev` → dev--hoddailyreports.netlify.app |
+| `thebusinessdevelopers/hod_admin_portal` | Admin portal deploy | `main` → hod-admin-portal.netlify.app | `dev` → dev--hod-admin-portal.netlify.app |
+
+**To deploy changes:**
+
+1. Develop on the `dev` branch in the relevant deploy repo
+2. Netlify automatically builds and deploys the dev preview
+3. Test on the preview URL
+4. Merge `dev` into `main` (via PR or local merge + push)
+5. Netlify auto-deploys to production
+
+The deploy repos are standalone mirrors of the `portal/` and `admin-portal/` directories in the monorepo. Push code changes to the deploy repos to trigger Netlify builds.
 
 ---
 

@@ -39,10 +39,15 @@
 
 ### Deployment
 
-- Two applications deployed to Netlify:
-  - **HOD Portal** — deploys from GitHub repo `thebusinessdevelopers/hod_daily_reports`
-  - **Admin Portal** — deployed via Netlify CLI or GitHub connection
+- Two applications deployed to Netlify, each with its own GitHub repo:
+  - **HOD Portal** — `thebusinessdevelopers/hod_daily_reports` → hoddailyreports.netlify.app
+  - **Admin Portal** — `thebusinessdevelopers/hod_admin_portal` → hod-admin-portal.netlify.app
+- Both repos use `main`/`dev` branching:
+  - `main` = production (auto-deploys to the live URL)
+  - `dev` = development (auto-deploys to `dev--{site}.netlify.app`)
+- Develop on `dev`, test on the preview URL, merge to `main` when ready
 - Environment variables on both sites: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`
+- Dev and prod branches share the same Supabase database
 
 ### Shared code
 
