@@ -6,7 +6,11 @@ function getKampalaHour(date: Date): number {
   return Number(date.toLocaleString('en-GB', { timeZone: TZ, hour: 'numeric', hour12: false }))
 }
 
-function getKampalaDateStr(date: Date): string {
+function getKampalaMinute(date: Date): number {
+  return Number(date.toLocaleString('en-GB', { timeZone: TZ, minute: 'numeric' }))
+}
+
+export function getKampalaDateStr(date: Date): string {
   return date.toLocaleDateString('en-CA', { timeZone: TZ })
 }
 
@@ -37,9 +41,12 @@ export function getStatusLabel(status: SubmissionStatus): string {
 
 export function getStatusBadgeClasses(status: SubmissionStatus): string {
   switch (status) {
-    case 'on_time': return 'text-green-700 bg-green-50 border-green-200'
-    case 'warning': return 'text-amber-700 bg-amber-50 border-amber-200'
-    case 'late': return 'text-red-600 bg-red-50 border-red-200'
+    case 'on_time':
+      return 'text-green-700 bg-green-50 border-green-200'
+    case 'warning':
+      return 'text-amber-700 bg-amber-50 border-amber-200'
+    case 'late':
+      return 'text-red-600 bg-red-50 border-red-200'
   }
 }
 
@@ -93,12 +100,114 @@ export function isWithinEditWindow(reportDate: string): boolean {
   const todayKampala = getKampalaDateStr(now)
   if (todayKampala < deadlineDateStr) return true
   if (todayKampala > deadlineDateStr) return false
-  return getKampalaHour(now) < 12
+  return getKampalaHour(now) < 18
+}
+
+export function getEditTimeRemaining(reportDate: string): { hours: number; minutes: number } | null {
+  if (!isWithinEditWindow(reportDate)) return null
+
+  const now = new Date()
+  const nowH = getKampalaHour(now)
+  const nowM = getKampalaMinute(now)
+  const todayKampala = getKampalaDateStr(now)
+
+  const nextDay = new Date(reportDate + 'T00:00:00Z')
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1)
+  const deadlineDateStr = nextDay.toISOString().split('T')[0]
+
+  let totalMinutesRemaining: number
+
+  if (todayKampala < deadlineDateStr) {
+    const todayDate = new Date(todayKampala + 'T00:00:00Z')
+    const deadlineDate = new Date(deadlineDateStr + 'T00:00:00Z')
+    const daysDiff = Math.round((deadlineDate.getTime() - todayDate.getTime()) / (24 * 60 * 60 * 1000))
+    const minutesLeftToday = (24 * 60) - (nowH * 60 + nowM)
+    const minutesFullDaysBetween = Math.max(0, daysDiff - 1) * 24 * 60
+    const minutesOnDeadlineDay = 18 * 60
+    totalMinutesRemaining = minutesLeftToday + minutesFullDaysBetween + minutesOnDeadlineDay
+  } else {
+    totalMinutesRemaining = (18 * 60) - (nowH * 60 + nowM)
+  }
+
+  if (totalMinutesRemaining <= 0) return null
+
+  return {
+    hours: Math.floor(totalMinutesRemaining / 60),
+    minutes: totalMinutesRemaining % 60,
+  }
 }
 
 export function isLateOrWarning(submittedAt: string, reportDate: string): boolean {
   const status = getSubmissionStatus(submittedAt, reportDate)
   return status !== 'on_time'
+}
+
+export interface SmartDateButton {
+  date: string
+  label: string
+  priority: 'primary' | 'secondary' | 'tertiary'
+  hasReport: boolean
+  reportId?: string
+}
+
+export function getSmartDateButtons(
+  existingReports: { report_date: string; id: string }[]
+): SmartDateButton[] {
+  const now = new Date()
+  const kampalaHour = getKampalaHour(now)
+  const today = getKampalaDateStr(now)
+
+  const yesterdayDate = new Date(today + 'T00:00:00Z')
+  yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1)
+  const yesterday = yesterdayDate.toISOString().split('T')[0]
+
+  const twoDaysAgoDate = new Date(today + 'T00:00:00Z')
+  twoDaysAgoDate.setUTCDate(twoDaysAgoDate.getUTCDate() - 2)
+  const twoDaysAgo = twoDaysAgoDate.toISOString().split('T')[0]
+
+  const reportMap = new Map(existingReports.map(r => [r.report_date, r.id]))
+
+  function btn(date: string, label: string, priority: 'primary' | 'secondary' | 'tertiary'): SmartDateButton {
+    const reportId = reportMap.get(date)
+    return { date, label, priority, hasReport: !!reportId, reportId: reportId ?? undefined }
+  }
+
+  const buttons: SmartDateButton[] = []
+
+  if (kampalaHour >= 16) {
+    buttons.push(btn(today, 'Report for today', 'primary'))
+    buttons.push(btn(yesterday, 'Report for yesterday', 'secondary'))
+  } else {
+    buttons.push(btn(yesterday, 'Report for yesterday', 'primary'))
+    buttons.push(btn(today, 'Report for today', 'secondary'))
+  }
+
+  if (!reportMap.has(twoDaysAgo)) {
+    buttons.push(btn(twoDaysAgo, `Report for ${formatDateKampala(twoDaysAgo)}`, 'tertiary'))
+  }
+
+  return buttons
+}
+
+export function getExpectedReportingDays(fromDateStr: string, toDateStr: string): string[] {
+  const dates: string[] = []
+  const d = new Date(fromDateStr + 'T12:00:00Z')
+  const end = new Date(toDateStr + 'T12:00:00Z')
+  const now = new Date()
+  const todayKampala = getKampalaDateStr(now)
+  const kampalaHour = getKampalaHour(now)
+
+  while (d <= end) {
+    const dateStr = d.toISOString().split('T')[0]
+    const dayOfWeek = d.getUTCDay()
+    if (dayOfWeek !== 0) {
+      if (!(dateStr === todayKampala && kampalaHour < 16)) {
+        dates.push(dateStr)
+      }
+    }
+    d.setUTCDate(d.getUTCDate() + 1)
+  }
+  return dates
 }
 
 export function formatDateKampala(dateStr: string): string {

@@ -8,6 +8,7 @@ import StockProjectionDisplay from './StockProjectionDisplay'
 import { getDeadlineBadge, isWithinEditWindow, formatDateTimeKampala, type DeadlineBadge } from '@/lib/submission-status'
 import CalculationHint from './CalculationHint'
 import { getCalculationsForSlug, calculateVehicleDistance } from '@/config/calculations'
+import RoomGrid, { type RoomsValue } from './RoomGrid'
 
 interface FormRendererProps {
   config: DepartmentFormConfig
@@ -20,6 +21,7 @@ interface FormRendererProps {
   initialSubmittedBy?: string
   initialReportDate?: string
   editorName?: string
+  readOnly?: boolean
 }
 
 function isMonday(dateStr: string): boolean {
@@ -78,6 +80,7 @@ export default function FormRenderer({
   initialSubmittedBy,
   initialReportDate,
   editorName,
+  readOnly = false,
 }: FormRendererProps) {
   const now = new Date()
   const today = now.toISOString().split('T')[0]
@@ -442,6 +445,18 @@ export default function FormRenderer({
   }
 
   function renderField(field: FormField) {
+    if (field.type === 'room_grid') {
+      const roomsVal = (values[field.name] ?? {}) as RoomsValue
+      return (
+        <RoomGrid
+          key={field.name}
+          value={roomsVal}
+          onChange={(updated) => setValue(field.name, updated)}
+          readOnly={readOnly}
+        />
+      )
+    }
+
     if (field.type === 'repeater') {
       const raw = values[field.name]
       const rows = (Array.isArray(raw) ? raw : []) as Record<string, string | number>[]
@@ -573,6 +588,77 @@ export default function FormRenderer({
             ))}
           </select>
         )}
+      </div>
+    )
+  }
+
+  if (readOnly) {
+    return (
+      <div className="space-y-8">
+        {config.sections.map((section) => (
+          <div key={section.title} className="space-y-4 mb-8">
+            <h2 className="text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">
+              {section.title}
+            </h2>
+            <div className="space-y-4">
+              {section.fields.map((field) => {
+                const val = values[field.name]
+                if (val === undefined || val === null || val === '') return null
+
+                if (field.type === 'room_grid' && val && typeof val === 'object' && !Array.isArray(val)) {
+                  return (
+                    <RoomGrid
+                      key={field.name}
+                      value={val as RoomsValue}
+                      onChange={() => {}}
+                      readOnly
+                    />
+                  )
+                }
+
+                if (field.type === 'repeater' && Array.isArray(val) && val.length > 0) {
+                  return (
+                    <div key={field.name}>
+                      <p className="text-sm font-medium text-gray-700 mb-2">{field.label}</p>
+                      <div className="space-y-2">
+                        {(val as Record<string, unknown>[]).map((row, idx) => (
+                          <div key={idx} className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                            {field.sub_fields?.map((sub) => {
+                              const sv = row[sub.name]
+                              if (sv === undefined || sv === null || sv === '') return null
+                              return (
+                                <p key={sub.name}>
+                                  <span className="text-gray-500">{sub.label}:</span>{' '}
+                                  <span className="text-gray-900">{String(sv)}</span>
+                                </p>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                if (field.type === 'checkbox_group' && Array.isArray(val) && val.length > 0) {
+                  return (
+                    <div key={field.name}>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{field.label}</p>
+                      <p className="text-sm text-gray-900 mt-0.5">{(val as string[]).join(', ')}</p>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={field.name}>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{field.label}</p>
+                    <p className="text-sm text-gray-900 mt-0.5 whitespace-pre-wrap">{String(val)}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     )
   }

@@ -312,6 +312,25 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
         ],
       },
       {
+        title: 'Near-Expired Items',
+        fields: [
+          {
+            name: 'near_expired_items',
+            label: 'Items nearing expiry',
+            type: 'repeater',
+            min_rows: 0,
+            sub_fields: [
+              { name: 'item', label: 'Item', type: 'text', placeholder: 'e.g. Milk, Yoghurt, Bread' },
+              { name: 'expiry_date', label: 'Expiry date', type: 'text', placeholder: 'e.g. 28 Mar 2026' },
+              { name: 'quantity_remaining', label: 'Qty remaining', type: 'number' },
+              { name: 'unit', label: 'Unit', type: 'text', placeholder: 'e.g. litres, pieces, kg' },
+              { name: 'suggested_use', label: 'Suggested use', type: 'text', placeholder: 'e.g. Use in soup, Staff meal' },
+              { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Any additional notes' },
+            ],
+          },
+        ],
+      },
+      {
         title: 'Daily Food Cost',
         fields: [
           { name: 'daily_food_cost', label: 'Total food cost today (UGX)', type: 'number', required: true, placeholder: '0' },
@@ -343,26 +362,7 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
       {
         title: 'Room Status',
         fields: [
-          {
-            name: 'room_status',
-            label: 'Room status',
-            type: 'repeater',
-            min_rows: 1,
-            sub_fields: [
-              { name: 'room', label: 'Room', type: 'text', placeholder: 'e.g. Cottage 1' },
-              { name: 'condition', label: 'Condition', type: 'text', placeholder: 'e.g. Good / Needs attention' },
-              { name: 'damages', label: 'Damages or missing items', type: 'text', placeholder: 'e.g. Towel missing, lamp broken' },
-            ],
-          },
-        ],
-      },
-      {
-        title: 'Occupancy',
-        fields: [
-          { name: 'guest_arrivals', label: 'Guest arrivals', type: 'number', required: true, placeholder: '0' },
-          { name: 'guest_departures', label: 'Guest departures', type: 'number', required: true, placeholder: '0' },
-          { name: 'rooms_occupied', label: 'Rooms occupied', type: 'number', required: true, placeholder: '0' },
-          { name: 'vacant_rooms', label: 'Vacant rooms', type: 'number', required: true, placeholder: '0' },
+          { name: 'rooms', label: 'Room status', type: 'room_grid', required: true },
         ],
       },
       {
@@ -1000,6 +1000,53 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
     ],
   },
 ]
+
+export const LEGACY_HOUSEKEEPING_CONFIG: DepartmentFormConfig = {
+  slug: 'housekeeping',
+  name: 'Housekeeping',
+  hods: ['Elly'],
+  substitutes: ['Anita'],
+  defaultsToYesterday: true,
+  sections: [
+    {
+      title: 'Room Status',
+      fields: [
+        {
+          name: 'room_status',
+          label: 'Room status',
+          type: 'repeater',
+          min_rows: 1,
+          sub_fields: [
+            { name: 'room', label: 'Room', type: 'text', placeholder: 'e.g. Cottage 1' },
+            { name: 'condition', label: 'Condition', type: 'text', placeholder: 'e.g. Good / Needs attention' },
+            { name: 'damages', label: 'Damages or missing items', type: 'text', placeholder: 'e.g. Towel missing, lamp broken' },
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Occupancy',
+      fields: [
+        { name: 'guest_arrivals', label: 'Guest arrivals', type: 'number', required: true, placeholder: '0' },
+        { name: 'guest_departures', label: 'Guest departures', type: 'number', required: true, placeholder: '0' },
+        { name: 'rooms_occupied', label: 'Rooms occupied', type: 'number', required: true, placeholder: '0' },
+        { name: 'vacant_rooms', label: 'Vacant rooms', type: 'number', required: true, placeholder: '0' },
+      ],
+    },
+    {
+      title: 'Laundry',
+      fields: [
+        { name: 'laundry_notes', label: 'Laundry report', type: 'textarea', placeholder: 'Damaged clothes, incomplete items, any issues...' },
+      ],
+    },
+    {
+      title: 'Notes',
+      fields: [
+        { name: 'challenges_successes', label: 'Challenges or successes to note', type: 'textarea', placeholder: 'Any issues, highlights or observations from today...' },
+      ],
+    },
+  ],
+}
 
 export function getFormBySlug(slug: string): DepartmentFormConfig | undefined {
   return DEPARTMENT_FORMS.find((f) => f.slug === slug)

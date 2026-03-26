@@ -57,7 +57,7 @@ export default async function EditReportPage({ params }: PageProps) {
         <div className="max-w-2xl mx-auto px-4 py-16 text-center">
           <h2 className="text-xl font-bold text-gray-900 mb-2">Editing window closed</h2>
           <p className="text-sm text-gray-500">
-            Reports can only be edited until 12:00 the day after they were due.
+            Reports can only be edited until 6:00 PM the day after they were due.
           </p>
           <Link href="/" className="mt-6 inline-block text-sm text-ziwa-600 hover:underline">Back to departments</Link>
         </div>

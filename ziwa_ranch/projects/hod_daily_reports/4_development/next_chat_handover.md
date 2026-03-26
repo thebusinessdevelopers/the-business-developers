@@ -1,7 +1,7 @@
-# Next Chat Handover
+# Next Chat Handover (v1.x — Historical)
 
-> **Purpose:** Gives the next AI chat everything it needs to continue without asking questions already answered.
-> **Load context at:** Standard context load from `context.md`, then this file.
+> **Purpose:** Historical record of the v1.x build state. For current v2 work, read `next_chat_handover_v2.md` instead.
+> **Superseded by:** `next_chat_handover_v2.md` (v2 build handover)
 
 ---
 
@@ -128,3 +128,4 @@ See `versions/v1.6/snapshot.md`. Highlights: report editing + audit trail, item 
 ---
 
 *Updated: 16 March 2026. v1.9 live and verified.*
+*Superseded: 25 March 2026. v2.0 Phase A live. See `next_chat_handover_v2.md` for current state.*

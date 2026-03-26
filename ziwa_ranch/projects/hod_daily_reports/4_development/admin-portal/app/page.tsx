@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase-server'
-import { getSubmissionStatus } from '@/lib/submission-status'
+import { getSubmissionStatus, getKampalaDateStr, getExpectedReportingDays } from '@/lib/submission-status'
 
 interface DeptRow {
   id: string
@@ -36,21 +36,26 @@ export default async function DashboardHome() {
     .eq('is_active', true)
     .order('sort_order')
 
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29)
+  const today = getKampalaDateStr(new Date())
+
+  const thirtyDate = new Date(today + 'T12:00:00Z')
+  thirtyDate.setUTCDate(thirtyDate.getUTCDate() - 29)
+  const thirtyStr = thirtyDate.toISOString().split('T')[0]
+
+  const sevenDate = new Date(today + 'T12:00:00Z')
+  sevenDate.setUTCDate(sevenDate.getUTCDate() - 6)
+  const sevenStr = sevenDate.toISOString().split('T')[0]
 
   const { data: reports } = await supabase
     .from('hod_daily_reports')
     .select('id, department_id, submitted_by, report_date, submitted_at')
-    .gte('report_date', thirtyDaysAgo.toISOString().split('T')[0])
+    .gte('report_date', thirtyStr)
 
   const depts = (departments ?? []) as DeptRow[]
   const allReports = (reports ?? []) as ReportRow[]
-  const today = new Date().toISOString().split('T')[0]
 
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
-  const sevenStr = sevenDaysAgo.toISOString().split('T')[0]
+  const expectedDays7 = getExpectedReportingDays(sevenStr, today)
+  const expectedDays30 = getExpectedReportingDays(thirtyStr, today)
 
   const stats = depts.map((dept) => {
     const dr = allReports.filter((r) => r.department_id === dept.id)
@@ -66,8 +71,8 @@ export default async function DashboardHome() {
       ...dept,
       submittedToday: !!todayReport,
       todayBy: todayReport?.submitted_by,
-      rate7: Math.round((uniqueDays7 / 7) * 100),
-      rate30: Math.round((uniqueDays30 / 30) * 100),
+      rate7: expectedDays7.length > 0 ? Math.round((uniqueDays7 / expectedDays7.length) * 100) : 0,
+      rate30: expectedDays30.length > 0 ? Math.round((uniqueDays30 / expectedDays30.length) * 100) : 0,
       late7,
       warning7,
       late30,

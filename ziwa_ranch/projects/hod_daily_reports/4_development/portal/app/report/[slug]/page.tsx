@@ -1,36 +1,30 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { supabase } from '@/lib/supabase'
+import { createServerClient } from '@/lib/supabase-server'
 import { getFormBySlug } from '@/config/forms'
-import { Department } from '@/types'
-import ReportForm from './ReportForm'
+import DepartmentHub from './DepartmentHub'
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ slug: string }>
 }
 
-async function getDepartmentBySlug(slug: string): Promise<Department | null> {
-  const { data, error } = await supabase
+export default async function ReportPage({ params }: PageProps) {
+  const { slug } = await params
+  const formConfig = getFormBySlug(slug)
+  if (!formConfig) notFound()
+
+  const supabase = createServerClient()
+
+  const { data: department } = await supabase
     .from('hod_departments')
-    .select('*')
+    .select('id, name, slug, is_active')
     .eq('slug', slug)
     .single()
 
-  if (error) return null
-  return data
-}
-
-export default async function ReportPage({ params }: PageProps) {
-  const { slug } = await params
-  const [department, formConfig] = await Promise.all([
-    getDepartmentBySlug(slug),
-    Promise.resolve(getFormBySlug(slug)),
-  ])
-
-  if (!department || !formConfig) {
-    notFound()
-  }
+  if (!department) notFound()
 
   if (!department.is_active) {
     return (
@@ -48,6 +42,18 @@ export default async function ReportPage({ params }: PageProps) {
     )
   }
 
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const minDate = sevenDaysAgo.toISOString().split('T')[0]
+
+  const { data: recentReports } = await supabase
+    .from('hod_daily_reports')
+    .select('id, report_date, submitted_by, submitted_at, acknowledged_at, acknowledged_by, review_comments, edited_at, edit_history')
+    .eq('department_id', department.id)
+    .gte('report_date', minDate)
+    .order('report_date', { ascending: false })
+    .limit(10)
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -63,15 +69,11 @@ export default async function ReportPage({ params }: PageProps) {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{department.name}</h1>
-          <p className="text-sm text-gray-500 mt-1">Fill in today&apos;s report and submit when complete.</p>
-        </div>
-
-        <ReportForm
-          config={formConfig}
-          departmentId={department.id}
+        <DepartmentHub
+          departmentName={department.name}
           departmentSlug={slug}
+          departmentId={department.id}
+          recentReports={recentReports ?? []}
         />
       </div>
     </main>

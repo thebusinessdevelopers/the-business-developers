@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import { createServerClient } from '@/lib/supabase-server'
+import { getKampalaDateStr, getExpectedReportingDays, formatDateKampala } from '@/lib/submission-status'
 import CompliancePeriodSelector from './CompliancePeriodSelector'
+import WhatsAppComplianceButton from './WhatsAppComplianceButton'
 
 interface PageProps {
   searchParams: Promise<{ days?: string }>
@@ -30,10 +32,10 @@ export default async function CompliancePage({ searchParams }: PageProps) {
     .eq('is_active', true)
     .order('sort_order')
 
-  const fromDate = new Date()
-  fromDate.setDate(fromDate.getDate() - (days - 1))
+  const today = getKampalaDateStr(new Date())
+  const fromDate = new Date(today + 'T12:00:00Z')
+  fromDate.setUTCDate(fromDate.getUTCDate() - (days - 1))
   const fromStr = fromDate.toISOString().split('T')[0]
-  const today = new Date().toISOString().split('T')[0]
 
   const { data: reports } = await supabase
     .from('hod_daily_reports')
@@ -44,15 +46,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
   const depts = (departments ?? []) as DeptRow[]
   const allReports = (reports ?? []) as ReportRow[]
 
-  const expectedDates: string[] = []
-  const d = new Date(fromStr + 'T00:00:00')
-  const todayDate = new Date(today + 'T00:00:00')
-  while (d <= todayDate) {
-    if (d.getDay() !== 0) {
-      expectedDates.push(d.toISOString().split('T')[0])
-    }
-    d.setDate(d.getDate() + 1)
-  }
+  const expectedDates = getExpectedReportingDays(fromStr, today)
 
   const stats = depts.map((dept) => {
     const deptReports = allReports.filter((r) => r.department_id === dept.id)
@@ -72,6 +66,10 @@ export default async function CompliancePage({ searchParams }: PageProps) {
 
   stats.sort((a, b) => a.rate - b.rate)
 
+  const totalSubmitted = stats.reduce((sum, s) => sum + s.submitted, 0)
+  const totalExpected = stats.length * expectedDates.length
+  const overallRate = totalExpected > 0 ? Math.round((totalSubmitted / totalExpected) * 100) : 0
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -81,7 +79,19 @@ export default async function CompliancePage({ searchParams }: PageProps) {
             Submission rates over {days} days ({expectedDates.length} reporting days, Sundays excluded).
           </p>
         </div>
-        <CompliancePeriodSelector currentDays={days} />
+        <div className="flex items-center gap-2">
+          <WhatsAppComplianceButton
+            stats={stats}
+            days={days}
+            reportingDays={expectedDates.length}
+            fromDate={formatDateKampala(fromStr)}
+            toDate={formatDateKampala(today)}
+            totalSubmitted={totalSubmitted}
+            totalExpected={totalExpected}
+            overallRate={overallRate}
+          />
+          <CompliancePeriodSelector currentDays={days} />
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">

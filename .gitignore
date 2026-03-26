@@ -1,0 +1,38 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.cursor/
+
+# Build artefacts
+*.tsbuildinfo
+next-env.d.ts
+
+# Google Drive Sync - sensitive files
+global/projects/deprecated/google_drive_sync/credentials.json
+global/projects/deprecated/google_drive_sync/token.json
+global/projects/deprecated/google_drive_sync_v1.5/credentials.json
+global/projects/deprecated/google_drive_sync_v1.5/token.json
+global/projects/google_drive_sync_v2/credentials.json
+global/projects/google_drive_sync_v2/token.json
+global/projects/google_drive_sync_v2/.sync_state.db
+
+
+
+# Local Netlify folder
+.netlify

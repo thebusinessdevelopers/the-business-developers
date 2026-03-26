@@ -21,7 +21,7 @@ export interface HodSession {
   user?: HodUser
 }
 
-export type FieldType = 'text' | 'textarea' | 'number' | 'repeater' | 'checkbox_group' | 'select'
+export type FieldType = 'text' | 'textarea' | 'number' | 'repeater' | 'checkbox_group' | 'select' | 'room_grid'
 
 export interface SubField {
   name: string

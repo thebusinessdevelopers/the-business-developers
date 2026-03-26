@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase-server'
-import { getFormBySlug } from '@/config/forms'
+import { getFormBySlug, LEGACY_HOUSEKEEPING_CONFIG } from '@/config/forms'
 import AdminEditForm from './AdminEditForm'
 
 interface PageProps {
@@ -31,7 +31,8 @@ export default async function AdminEditPage({ params }: PageProps) {
     hod_departments: { name: string; slug: string }
   }
 
-  const formConfig = getFormBySlug(r.hod_departments.slug)
+  const isLegacyHousekeeping = r.hod_departments.slug === 'housekeeping' && 'room_status' in r.report_data && !('rooms' in r.report_data)
+  const formConfig = isLegacyHousekeeping ? LEGACY_HOUSEKEEPING_CONFIG : getFormBySlug(r.hod_departments.slug)
   if (!formConfig) notFound()
 
   return (

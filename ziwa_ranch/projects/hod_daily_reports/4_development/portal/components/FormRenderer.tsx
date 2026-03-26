@@ -5,9 +5,13 @@ import { DepartmentFormConfig, FormField, EditHistoryEntry } from '@/types'
 import RepeaterField from './RepeaterField'
 import NumberStepper from './NumberStepper'
 import StockProjectionDisplay from './StockProjectionDisplay'
-import { getDeadlineBadge, isWithinEditWindow, formatDateTimeKampala, type DeadlineBadge } from '@/lib/submission-status'
+import { getDeadlineBadge, isWithinEditWindow, formatDateTimeKampala, getKampalaDateStr, type DeadlineBadge } from '@/lib/submission-status'
 import CalculationHint from './CalculationHint'
-import { getCalculationsForSlug, calculateVehicleDistance } from '@/config/calculations'
+import { getCalculationsForSlug } from '@/config/calculations'
+import { useDraftManager, type DraftData } from '@/hooks/useDraftManager'
+import { useSubmissionQueue } from '@/hooks/useSubmissionQueue'
+import RoomGrid, { type RoomsValue, type RoomData } from './RoomGrid'
+import { ALL_ROOMS } from '@/config/rooms'
 
 interface FormRendererProps {
   config: DepartmentFormConfig
@@ -20,6 +24,8 @@ interface FormRendererProps {
   initialSubmittedBy?: string
   initialReportDate?: string
   editorName?: string
+  lockedDate?: string
+  readOnly?: boolean
 }
 
 function isMonday(dateStr: string): boolean {
@@ -27,13 +33,6 @@ function isMonday(dateStr: string): boolean {
 }
 
 type FormValues = Record<string, unknown>
-
-interface DraftData {
-  values: FormValues
-  nameSelection: string
-  customName: string
-  submittedBy: string
-}
 
 const inputClass =
   'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ziwa-500 focus:border-transparent'
@@ -78,21 +77,27 @@ export default function FormRenderer({
   initialSubmittedBy,
   initialReportDate,
   editorName,
+  lockedDate,
+  readOnly = false,
 }: FormRendererProps) {
   const now = new Date()
-  const today = now.toISOString().split('T')[0]
+  const todayKampala = getKampalaDateStr(now)
   const kampalaHour = Number(now.toLocaleString('en-GB', { timeZone: 'Africa/Kampala', hour: 'numeric', hour12: false }))
+
   const defaultDate = (() => {
+    if (lockedDate) return lockedDate
+    if (editMode && initialReportDate) return initialReportDate
     if (config.defaultsToYesterday && kampalaHour < 12) {
-      const y = new Date(now)
-      y.setDate(y.getDate() - 1)
-      return y.toISOString().split('T')[0]
+      const d = new Date(todayKampala + 'T00:00:00Z')
+      d.setUTCDate(d.getUTCDate() - 1)
+      return d.toISOString().split('T')[0]
     }
-    return today
+    return todayKampala
   })()
+
   const minDate = (() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 2)
+    const d = new Date(todayKampala + 'T00:00:00Z')
+    d.setUTCDate(d.getUTCDate() - 2)
     return d.toISOString().split('T')[0]
   })()
 
@@ -108,12 +113,10 @@ export default function FormRenderer({
     if (editMode && initialSubmittedBy && !allNames.includes(initialSubmittedBy)) return initialSubmittedBy
     return ''
   })
-  const [reportDate, setReportDate] = useState(editMode && initialReportDate ? initialReportDate : defaultDate)
+  const [reportDate, setReportDate] = useState(defaultDate)
   const [values, setValues] = useState<FormValues>(initialValues ?? {})
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [draftStatus, setDraftStatus] = useState<'idle' | 'saved'>('idle')
-  const [draftLoaded, setDraftLoaded] = useState(false)
   const [duplicateReportId, setDuplicateReportId] = useState<string | null>(null)
   const [deadlineBadge, setDeadlineBadge] = useState<DeadlineBadge | null>(null)
   const [existingReport, setExistingReport] = useState<{
@@ -121,8 +124,6 @@ export default function FormRenderer({
   } | null>(null)
   const [viewingExisting, setViewingExisting] = useState(false)
   const [inlineEditMode, setInlineEditMode] = useState(false)
-
-  const draftStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const effectiveEditMode = editMode || inlineEditMode
   const effectiveEditReportId = editMode ? editReportId : existingReport?.id
@@ -132,16 +133,52 @@ export default function FormRenderer({
   const hasStockConfig = !!config.stockConfig
   const isStockEntryDay = hasStockConfig && isMonday(reportDate)
 
+  const [queued, setQueued] = useState(false)
+
+  const draftActive = !effectiveEditMode && !viewingExisting && !readOnly
+  const { draftData, draftLoaded, draftStatus, saveDraft, scheduleSave, clearDraft } = useDraftManager({
+    departmentId,
+    reportDate,
+    active: draftActive,
+    defaultDraftBy: config.hods[0],
+  })
+
+  const { queueSubmission } = useSubmissionQueue((item) => {
+    if (item.departmentId === departmentId) {
+      clearDraft()
+      onSuccess(undefined)
+    }
+  })
+
+  // Apply loaded draft data once
+  const draftApplied = useRef(false)
   useEffect(() => {
-    if (effectiveEditMode) { setDeadlineBadge(null); return }
+    if (draftData && !draftApplied.current) {
+      draftApplied.current = true
+      if (draftData.values && Object.keys(draftData.values).length > 0) setValues(draftData.values)
+      if (draftData.nameSelection) setNameSelection(draftData.nameSelection)
+      if (draftData.customName) setCustomName(draftData.customName)
+    }
+  }, [draftData])
+
+  // Auto-save draft on form changes
+  useEffect(() => {
+    if (!draftActive || Object.keys(values).length === 0) return
+    const draft: DraftData = { values, nameSelection, customName, submittedBy }
+    scheduleSave(draft)
+  }, [values, nameSelection, customName, submittedBy, draftActive, scheduleSave])
+
+  useEffect(() => {
+    if (effectiveEditMode || readOnly) { setDeadlineBadge(null); return }
     const update = () => setDeadlineBadge(getDeadlineBadge(reportDate))
     update()
     const interval = setInterval(update, 60_000)
     return () => clearInterval(interval)
-  }, [reportDate, effectiveEditMode])
+  }, [reportDate, effectiveEditMode, readOnly])
 
+  // Check for existing report when date changes (only when no locked date)
   useEffect(() => {
-    if (editMode) return
+    if (editMode || readOnly || lockedDate) return
     let cancelled = false
     async function checkExisting() {
       try {
@@ -172,79 +209,7 @@ export default function FormRenderer({
     }
     checkExisting()
     return () => { cancelled = true }
-  }, [reportDate, departmentId, editMode])
-
-  useEffect(() => {
-    if (editMode || viewingExisting) return
-    let cancelled = false
-    async function loadDraft() {
-      try {
-        const { supabase } = await import('@/lib/supabase')
-        const { data } = await supabase
-          .from('hod_drafts')
-          .select('draft_data')
-          .eq('department_id', departmentId)
-          .eq('report_date', reportDate)
-          .maybeSingle()
-        if (cancelled || !data) return
-        const draft = data.draft_data as DraftData
-        if (draft.values) setValues(draft.values)
-        if (draft.nameSelection) setNameSelection(draft.nameSelection)
-        if (draft.customName) setCustomName(draft.customName)
-        setDraftLoaded(true)
-        setTimeout(() => setDraftLoaded(false), 3000)
-      } catch { /* ignore */ }
-    }
-    loadDraft()
-    return () => { cancelled = true }
-  }, [departmentId, reportDate, editMode, viewingExisting])
-
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    if (effectiveEditMode || viewingExisting) return
-    if (Object.keys(values).length === 0) return
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
-    autoSaveTimer.current = setTimeout(() => {
-      const draft: DraftData = { values, nameSelection, customName, submittedBy }
-      import('@/lib/supabase').then(({ supabase }) => {
-        supabase.from('hod_drafts').upsert({
-          department_id: departmentId,
-          draft_by: submittedBy || config.hods[0],
-          report_date: reportDate,
-          draft_data: draft,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'department_id,report_date,draft_by' }).then(() => {})
-      }).catch(() => {})
-    }, 30_000)
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }
-  }, [values, nameSelection, customName, submittedBy, departmentId, reportDate, effectiveEditMode, viewingExisting, config.hods])
-
-  async function handleSaveDraft() {
-    const draft: DraftData = { values, nameSelection, customName, submittedBy }
-    try {
-      const { supabase } = await import('@/lib/supabase')
-      await supabase.from('hod_drafts').upsert({
-        department_id: departmentId,
-        draft_by: submittedBy || config.hods[0],
-        report_date: reportDate,
-        draft_data: draft,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'department_id,report_date,draft_by' })
-      setDraftStatus('saved')
-      if (draftStatusTimer.current) clearTimeout(draftStatusTimer.current)
-      draftStatusTimer.current = setTimeout(() => setDraftStatus('idle'), 3000)
-    } catch { /* ignore */ }
-  }
-
-  async function clearDraft() {
-    try {
-      const { supabase } = await import('@/lib/supabase')
-      await supabase.from('hod_drafts')
-        .delete()
-        .eq('department_id', departmentId)
-        .eq('report_date', reportDate)
-    } catch { /* ignore */ }
-  }
+  }, [reportDate, departmentId, editMode, readOnly, lockedDate])
 
   function setValue(name: string, value: unknown) {
     setValues((prev) => ({ ...prev, [name]: value }))
@@ -255,11 +220,23 @@ export default function FormRenderer({
   }
 
   function validate(): string | null {
-    if (!effectiveEditMode && !submittedBy) return 'Please enter your name.'
-    if (!effectiveEditMode && !reportDate) return 'Please select a report date.'
+    if (!effectiveEditMode && !readOnly && !submittedBy) return 'Please enter your name.'
+    if (!effectiveEditMode && !readOnly && !reportDate) return 'Please select a report date.'
 
     for (const section of config.sections) {
       for (const field of section.fields) {
+        if (field.type === 'room_grid' && field.required) {
+          const rooms = values[field.name] as RoomsValue | undefined
+          if (!rooms) return 'Please set a status for every room.'
+          for (const room of ALL_ROOMS) {
+            const data = rooms[room.slug] as RoomData | undefined
+            if (!data?.status) return `Please set a status for ${room.name}.`
+            if (data.status === 'occupied' && !data.condition) {
+              return `Please select a condition for ${room.name}.`
+            }
+          }
+          continue
+        }
         if (field.required) {
           const val = values[field.name]
           if (val === undefined || val === null || val === '') {
@@ -271,24 +248,10 @@ export default function FormRenderer({
     return null
   }
 
-  async function checkDuplicate(): Promise<string | null> {
-    if (effectiveEditMode) return null
-    try {
-      const { supabase } = await import('@/lib/supabase')
-      const { data } = await supabase
-        .from('hod_daily_reports')
-        .select('id')
-        .eq('department_id', departmentId)
-        .eq('report_date', reportDate)
-        .maybeSingle()
-      return data?.id ?? null
-    } catch {
-      return null
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (readOnly) return
+
     const validationError = validate()
     if (validationError) {
       setError(validationError)
@@ -299,9 +262,8 @@ export default function FormRenderer({
     setError(null)
 
     try {
-      const { supabase } = await import('@/lib/supabase')
-
       if (effectiveEditMode && effectiveEditReportId) {
+        const { supabase } = await import('@/lib/supabase')
         const baseValues = inlineEditMode ? (existingReport?.report_data ?? {}) : (initialValues ?? {})
         const changes = diffValues(baseValues, values, config)
         if (changes.length === 0) {
@@ -341,107 +303,93 @@ export default function FormRenderer({
         return
       }
 
-      const existingId = await checkDuplicate()
-      if (existingId) {
-        setDuplicateReportId(existingId)
-        setError(`A report for this department on ${reportDate} already exists. You can edit the existing report instead.`)
+      // New submission via server API
+      const res = await fetch('/api/submit-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          departmentId,
+          reportDate,
+          reportData: values,
+          submittedBy,
+          stockConfig: config.stockConfig ?? null,
+        }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        if (res.status === 409 && result.duplicateId) {
+          setDuplicateReportId(result.duplicateId)
+        }
+        setError(result.error || 'Something went wrong. Please try again.')
         setSubmitting(false)
         return
       }
 
-      const { data: reportRow, error: dbError } = await supabase.from('hod_daily_reports').insert({
-        department_id: departmentId,
-        submitted_by: submittedBy,
-        report_date: reportDate,
-        report_data: values,
-      }).select('id').single()
-
-      if (dbError) {
-        if (dbError.code === '23505') {
-          setError(`A report for this department on ${reportDate} already exists.`)
-          setSubmitting(false)
-          return
-        }
-        throw dbError
-      }
-
-      if (isStockEntryDay && config.stockConfig) {
-        try {
-          const stockItems = values[config.stockConfig.stockField]
-          if (stockItems && Array.isArray(stockItems)) {
-            await supabase.from('hod_verified_stock').insert({
-              department_id: departmentId,
-              stock_type: config.stockConfig.stockType,
-              entry_date: reportDate,
-              items: stockItems,
-              entered_by: submittedBy,
-            })
-          }
-        } catch (stockErr) {
-          console.warn('Verified stock write failed (migration may be pending):', stockErr)
-        }
-      }
-
       clearDraft()
-
-      if (reportRow?.id) {
-        fetch('/api/harvest-items', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reportId: reportRow.id }),
-        }).catch(() => {})
-      }
-
-      onSuccess(reportRow?.id)
+      onSuccess(result.reportId)
     } catch (err: unknown) {
       console.error(err)
+      const message = (err as { message?: string })?.message ?? 'Unknown error'
+      const isNetwork = message.includes('Failed to fetch') || message.includes('NetworkError') || message.includes('Load failed')
 
-      const supaErr = err as { code?: string; message?: string; details?: string } | null
-      const code = supaErr?.code ?? 'UNKNOWN'
-      const message = supaErr?.message ?? 'Unknown error'
+      if (isNetwork && !effectiveEditMode) {
+        queueSubmission({
+          departmentId,
+          reportDate,
+          reportData: values,
+          submittedBy,
+          stockConfig: config.stockConfig ?? null,
+          slug: config.slug,
+        })
+        setQueued(true)
+        setError(null)
+      } else {
+        const userMessage = isNetwork
+          ? 'Network error — check your internet connection and try again.'
+          : 'Something went wrong. Please try again or contact admin if this persists.'
 
-      let userMessage: string
-      switch (code) {
-        case '23505':
-          userMessage = `A report for this department on ${reportDate} already exists.`
-          break
-        case '42501':
-          userMessage = 'Permission denied. The system may be temporarily misconfigured — please contact admin. (Ref: RLS-42501)'
-          break
-        case 'PGRST116':
-          userMessage = 'The report may have been saved but could not be confirmed. Please check before resubmitting. (Ref: PGRST116)'
-          break
-        case '23503':
-          userMessage = 'Invalid department reference. Please go back and select your department again. (Ref: FK-23503)'
-          break
-        default:
-          if (message.includes('Failed to fetch') || message.includes('NetworkError') || message.includes('Load failed')) {
-            userMessage = 'Network error — check your internet connection and try again.'
-          } else {
-            userMessage = `Something went wrong (Ref: ${code}). Please try again or contact admin if this persists.`
-          }
+        fetch('/api/log-error', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            department_id: departmentId,
+            submitted_by: submittedBy,
+            report_date: reportDate,
+            error_code: 'CLIENT_ERROR',
+            error_message: message,
+            error_context: { slug: config.slug, editMode },
+          }),
+        }).catch(() => {})
+
+        setError(userMessage)
       }
-
-      fetch('/api/log-error', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          department_id: departmentId,
-          submitted_by: submittedBy,
-          report_date: reportDate,
-          error_code: code,
-          error_message: message,
-          error_context: { slug: config.slug, editMode, details: supaErr?.details },
-        }),
-      }).catch(() => {})
-
-      setError(userMessage)
     } finally {
       setSubmitting(false)
     }
   }
 
+  function handleSaveDraft() {
+    const draft: DraftData = { values, nameSelection, customName, submittedBy }
+    saveDraft(draft)
+  }
+
   function renderField(field: FormField) {
+    const disabled = readOnly || (viewingExisting && !inlineEditMode)
+
+    if (field.type === 'room_grid') {
+      const roomsVal = (values[field.name] ?? {}) as RoomsValue
+      return (
+        <RoomGrid
+          key={field.name}
+          value={roomsVal}
+          onChange={disabled ? () => {} : (updated) => setValue(field.name, updated)}
+          readOnly={disabled}
+        />
+      )
+    }
+
     if (field.type === 'repeater') {
       const raw = values[field.name]
       const rows = (Array.isArray(raw) ? raw : []) as Record<string, string | number>[]
@@ -453,7 +401,7 @@ export default function FormRenderer({
           subFields={field.sub_fields ?? []}
           minRows={field.min_rows ?? 0}
           value={rows}
-          onChange={(updated) => setValue(field.name, updated)}
+          onChange={disabled ? () => {} : (updated) => setValue(field.name, updated)}
           departmentSlug={config.slug}
         />
       )
@@ -470,6 +418,7 @@ export default function FormRenderer({
                 <input
                   type="checkbox"
                   checked={selected.includes(opt)}
+                  disabled={disabled}
                   onChange={(e) => {
                     const next = e.target.checked
                       ? [...selected, opt]
@@ -492,7 +441,7 @@ export default function FormRenderer({
           key={field.name}
           label={field.label}
           value={Number(values[field.name] ?? 0)}
-          onChange={(val) => setValue(field.name, val)}
+          onChange={disabled ? () => {} : (val) => setValue(field.name, val)}
           min={0}
         />
       )
@@ -502,7 +451,7 @@ export default function FormRenderer({
       <div key={field.name} className="space-y-1">
         <label className="block text-sm font-medium text-gray-700">
           {field.label}
-          {field.required && <span className="text-red-500 ml-1">*</span>}
+          {field.required && !readOnly && <span className="text-red-500 ml-1">*</span>}
         </label>
 
         {field.type === 'textarea' && (
@@ -512,8 +461,9 @@ export default function FormRenderer({
             onChange={(e) => setValue(field.name, e.target.value)}
             placeholder={field.placeholder}
             required={field.required}
+            disabled={disabled}
             rows={3}
-            className={inputClass}
+            className={inputClass + (disabled ? ' bg-gray-50 text-gray-600' : '')}
           />
         )}
 
@@ -526,10 +476,11 @@ export default function FormRenderer({
               onChange={(e) => setValue(field.name, e.target.value === '' ? '' : Number(e.target.value))}
               placeholder={field.placeholder}
               required={field.required}
+              disabled={disabled}
               min={0}
-              className={inputClass}
+              className={inputClass + (disabled ? ' bg-gray-50 text-gray-600' : '')}
             />
-            {calculations.map((calc) => {
+            {!disabled && calculations.map((calc) => {
               if (calc.targetField !== field.name || calc.type !== 'simple') return null
               const suggested = calc.formula(values)
               if (suggested === null) return null
@@ -555,7 +506,8 @@ export default function FormRenderer({
             onChange={(e) => setValue(field.name, e.target.value)}
             placeholder={field.placeholder}
             required={field.required}
-            className={inputClass}
+            disabled={disabled}
+            className={inputClass + (disabled ? ' bg-gray-50 text-gray-600' : '')}
           />
         )}
 
@@ -565,7 +517,8 @@ export default function FormRenderer({
             value={getStringValue(field.name)}
             onChange={(e) => setValue(field.name, e.target.value)}
             required={field.required}
-            className={inputClass}
+            disabled={disabled}
+            className={inputClass + (disabled ? ' bg-gray-50 text-gray-600' : '')}
           >
             <option value="">Select...</option>
             {field.options?.map((opt) => (
@@ -577,9 +530,26 @@ export default function FormRenderer({
     )
   }
 
+  if (readOnly) {
+    return (
+      <div className="space-y-8">
+        {config.sections.map((section) => (
+          <div key={section.title} className="space-y-4 mb-8">
+            <h2 className="text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">
+              {section.title}
+            </h2>
+            <div className="space-y-4">
+              {section.fields.map((field) => renderField(field))}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {!editMode && (
+      {!editMode && !lockedDate && (
         <div className="bg-gray-50 rounded-xl p-5 space-y-4 border border-gray-200">
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">
@@ -631,9 +601,67 @@ export default function FormRenderer({
               onChange={(e) => setReportDate(e.target.value)}
               required
               min={minDate}
-              max={today}
+              max={todayKampala}
               className={inputClass}
             />
+            {deadlineBadge && (
+              <span className={`inline-block text-xs rounded px-2 py-0.5 mt-1 border ${
+                deadlineBadge.status === 'on_time' ? 'text-green-700 bg-green-50 border-green-200' :
+                deadlineBadge.status === 'warning' ? 'text-amber-700 bg-amber-50 border-amber-200' :
+                'text-red-600 bg-red-50 border-red-200'
+              }`}>
+                {deadlineBadge.message}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!editMode && lockedDate && (
+        <div className="bg-gray-50 rounded-xl p-5 space-y-4 border border-gray-200">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">
+              Your name <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={nameSelection}
+              onChange={(e) => {
+                setNameSelection(e.target.value)
+                if (e.target.value !== '__other__') setCustomName('')
+              }}
+              className={inputClass}
+            >
+              {config.hods.map((hod) => (
+                <option key={hod} value={hod}>{hod}</option>
+              ))}
+              {(config.substitutes ?? []).length > 0 && (
+                <optgroup label="Team">
+                  {config.substitutes!.map((sub) => (
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))}
+                </optgroup>
+              )}
+              <option value="__other__">Someone else</option>
+            </select>
+            {nameSelection === '__other__' && (
+              <input
+                type="text"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder="Type your name here..."
+                required
+                className={inputClass + ' mt-2'}
+              />
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Report date</label>
+            <p className="text-sm text-gray-900 bg-white border border-gray-200 rounded-md px-3 py-2">
+              {new Date(lockedDate + 'T00:00:00').toLocaleDateString('en-GB', {
+                timeZone: 'Africa/Kampala', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+              })}
+            </p>
             {deadlineBadge && (
               <span className={`inline-block text-xs rounded px-2 py-0.5 mt-1 border ${
                 deadlineBadge.status === 'on_time' ? 'text-green-700 bg-green-50 border-green-200' :
@@ -677,7 +705,7 @@ export default function FormRenderer({
               Edit this report
             </button>
           ) : (
-            <p className="text-xs text-gray-500">Editing window closed (deadline: 12:00 the day after).</p>
+            <p className="text-xs text-gray-500">Editing window closed (deadline: 6:00 PM the day after).</p>
           )}
         </div>
       )}
@@ -717,6 +745,12 @@ export default function FormRenderer({
           )
         })}
       </div>
+
+      {queued && (
+        <div className="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+          Your report has been saved and will submit automatically when you&apos;re back online.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
