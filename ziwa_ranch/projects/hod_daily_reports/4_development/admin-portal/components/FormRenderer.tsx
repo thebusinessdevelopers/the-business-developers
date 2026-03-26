@@ -12,8 +12,8 @@ import RoomGrid, { type RoomsValue } from './RoomGrid'
 
 interface FormRendererProps {
   config: DepartmentFormConfig
-  departmentId: string
-  onSuccess: (reportId?: string) => void
+  departmentId?: string
+  onSuccess?: (reportId?: string) => void
   stockProjection?: { item: string; quantity: number; unit: string }[] | null
   editMode?: boolean
   editReportId?: string
@@ -71,7 +71,7 @@ function diffValues(
 
 export default function FormRenderer({
   config,
-  departmentId,
+  departmentId = '',
   onSuccess,
   stockProjection,
   editMode = false,
@@ -340,7 +340,7 @@ export default function FormRenderer({
           .eq('id', effectiveEditReportId)
 
         if (updateError) throw updateError
-        onSuccess(effectiveEditReportId)
+        onSuccess?.(effectiveEditReportId)
         return
       }
 
@@ -395,7 +395,7 @@ export default function FormRenderer({
         }).catch(() => {})
       }
 
-      onSuccess(reportRow?.id)
+      onSuccess?.(reportRow?.id)
     } catch (err: unknown) {
       console.error(err)
 

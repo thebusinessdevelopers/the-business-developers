@@ -114,8 +114,6 @@ export default async function ReportDetailPage({ params }: PageProps) {
       {formConfig ? (
         <FormRenderer
           config={formConfig}
-          departmentId=""
-          onSuccess={() => {}}
           readOnly
           initialValues={r.report_data}
         />
