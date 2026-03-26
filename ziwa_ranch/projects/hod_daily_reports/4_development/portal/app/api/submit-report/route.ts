@@ -2,34 +2,41 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { validateSession, logActivity } from '@/lib/auth'
 import { createServerClient } from '@/lib/supabase-server'
-import { getHfClient } from '@/lib/hf'
+import { callOpenRouter } from '@/lib/openrouter'
 
-const URGENCY_LABELS = ['urgent issue', 'maintenance needed', 'routine observation', 'positive highlight']
+const URGENCY_LABELS = ['urgent issue', 'maintenance needed', 'routine observation', 'positive highlight'] as const
 
 async function detectUrgency(reportId: string, text: string) {
   if (!text || text.trim().length < 10) return
   try {
-    const hf = getHfClient()
-    const result = await hf.zeroShotClassification({
-      model: 'facebook/bart-large-mnli',
-      inputs: text.trim(),
-      parameters: { candidate_labels: URGENCY_LABELS },
+    const result = await callOpenRouter({
+      messages: [
+        {
+          role: 'system',
+          content: `You classify daily operational notes from department heads at a wildlife ranch. Classify the following note into exactly one category: ${URGENCY_LABELS.join(', ')}. Respond with valid JSON only: {"label":"<category>","confidence":0.0-1.0}. If the note is trivial or empty, classify as "routine observation" with low confidence.`,
+        },
+        { role: 'user', content: text.trim() },
+      ],
+      maxTokens: 100,
+      reasoningEffort: 'low',
     })
 
-    const top = Array.isArray(result) ? result[0] : null
-    if (!top) return
+    let parsed: { label: string; confidence: number }
+    try {
+      const jsonMatch = result.content.match(/\{[^}]+\}/)
+      parsed = JSON.parse(jsonMatch?.[0] ?? '{}')
+    } catch {
+      return
+    }
 
-    const labels = (top as { labels?: string[] }).labels ?? []
-    const scores = (top as { scores?: number[] }).scores ?? []
+    if (!parsed.label) return
 
     const flags: Record<string, unknown> = {
-      top_label: labels[0] ?? null,
-      top_score: scores[0] ?? null,
-      labels: labels.reduce((acc: Record<string, number>, label: string, i: number) => {
-        acc[label] = scores[i] ?? 0
-        return acc
-      }, {} as Record<string, number>),
+      top_label: parsed.label,
+      top_score: parsed.confidence ?? null,
+      labels: { [parsed.label]: parsed.confidence ?? 1 },
       analysed_at: new Date().toISOString(),
+      model: 'openrouter/claude-sonnet-4.6',
     }
 
     const supabase = createServerClient()
@@ -146,7 +153,6 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({ reportId: reportRow.id }),
       }).catch(() => {})
 
-      // Link uploaded photos to this report
       const photoData = reportData.photos
       if (Array.isArray(photoData) && photoData.length > 0) {
         const mediaIds = photoData
@@ -158,7 +164,16 @@ export async function POST(request: NextRequest) {
               .from('hod_report_media')
               .update({ report_id: reportRow.id })
               .in('id', mediaIds)
-          ).catch(() => {})
+          ).then(() => {
+              for (const mediaId of mediaIds) {
+                fetch(`${origin}/api/ai/process-media`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ media_id: mediaId }),
+                }).catch(() => {})
+              }
+            })
+            .catch(() => {})
         }
       }
 

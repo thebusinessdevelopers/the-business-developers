@@ -12,6 +12,7 @@ interface AdminEditFormProps {
   reportData: Record<string, unknown>
   submittedBy: string
   reportDate: string
+  editorName?: string
 }
 
 export default function AdminEditForm({
@@ -21,6 +22,7 @@ export default function AdminEditForm({
   reportData,
   submittedBy,
   reportDate,
+  editorName = 'Admin',
 }: AdminEditFormProps) {
   const [saved, setSaved] = useState(false)
   const [newDate, setNewDate] = useState(reportDate)
@@ -102,7 +104,7 @@ export default function AdminEditForm({
         initialValues={reportData}
         initialSubmittedBy={submittedBy}
         initialReportDate={reportDate}
-        editorName="Admin"
+        editorName={editorName}
       />
     </div>
   )

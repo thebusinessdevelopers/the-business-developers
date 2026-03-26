@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { verifyAdminAuth } from '@/lib/admin-auth'
+import { verifyAdminAuth, getAdminUser, logAdminActivity } from '@/lib/admin-auth'
 import { createServerClient } from '@/lib/supabase-server'
 
 export async function POST(request: Request) {
@@ -7,6 +7,7 @@ export async function POST(request: Request) {
     const authError = await verifyAdminAuth()
     if (authError) return authError
 
+    const admin = await getAdminUser()
     const { reportIds, reviewedBy, reviewComments } = await request.json()
 
     if (!Array.isArray(reportIds) || reportIds.length === 0 || !reviewedBy) {
@@ -30,6 +31,16 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (admin) {
+      await logAdminActivity(admin.id, 'report_reviewed', {
+        report_ids: reportIds,
+        count: reportIds.length,
+        reviewed_by: reviewedBy,
+        admin_title: admin.admin_title,
+        batch: true,
+      }).catch(() => {})
     }
 
     return NextResponse.json({ ok: true, count: reportIds.length })

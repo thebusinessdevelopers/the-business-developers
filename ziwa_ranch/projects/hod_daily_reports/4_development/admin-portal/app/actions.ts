@@ -1,36 +1,49 @@
 'use server'
 
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { createHmac } from 'crypto'
+import { adminLogin, adminLogout, getSessionCookieConfig, logAdminActivity } from '@/lib/admin-auth'
 
-function computeHash(password: string): string {
-  return createHmac('sha256', password).update(password).digest('hex')
-}
-
-export async function loginAction(formData: FormData) {
+export async function loginAction(_prev: unknown, formData: FormData) {
+  const username = formData.get('username') as string
   const password = formData.get('password') as string
-  const expected = process.env.ADMIN_PASSWORD ?? ''
 
-  if (!password || password !== expected) {
-    return { error: 'Incorrect password.' }
+  if (!username || !password) {
+    return { error: 'Username and password are required.' }
   }
 
-  const hash = computeHash(password)
+  const hdrs = await headers()
+  const ip = hdrs.get('x-forwarded-for') ?? hdrs.get('x-real-ip') ?? undefined
+
+  const result = await adminLogin(username, password, ip)
+
+  if ('error' in result) {
+    return { error: result.error }
+  }
+
   const cookieStore = await cookies()
-  cookieStore.set('admin_auth', hash, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 24,
-  })
+  cookieStore.set(getSessionCookieConfig(result.token))
+
+  await logAdminActivity(result.user.id, 'admin_login', {
+    username: result.user.username,
+    admin_title: result.user.admin_title,
+    ip,
+  }).catch(() => {})
 
   redirect('/')
 }
 
 export async function logoutAction() {
-  const cookieStore = await cookies()
-  cookieStore.delete('admin_auth')
+  const { getAdminUser } = await import('@/lib/admin-auth')
+  const user = await getAdminUser()
+
+  if (user) {
+    await logAdminActivity(user.id, 'admin_logout', {
+      username: user.username,
+      admin_title: user.admin_title,
+    }).catch(() => {})
+  }
+
+  await adminLogout()
   redirect('/')
 }

@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { validateSession, logActivity } from '@/lib/auth'
 import { createServerClient } from '@/lib/supabase-server'
-import { getHfClient } from '@/lib/hf'
 
 const SESSION_COOKIE = 'hod_session'
 const GUEST_COOKIE = 'hod_guest'
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 function slugify(text: string): string {
@@ -15,67 +14,6 @@ function slugify(text: string): string {
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '')
     .slice(0, 80)
-}
-
-async function analyseImage(
-  imageBlob: Blob,
-  hodDescription: string,
-  category: string,
-  categories: string[]
-): Promise<{ filename_slug: string; ai_description: string; tags: string[] }> {
-  const hf = getHfClient()
-
-  const [captionResult, objectResult, classifyResult] = await Promise.allSettled([
-    hf.imageToText({
-      model: 'Salesforce/blip-image-captioning-large',
-      data: imageBlob,
-    }),
-    hf.objectDetection({
-      model: 'facebook/detr-resnet-50',
-      data: imageBlob,
-    }),
-    hf.zeroShotClassification({
-      model: 'facebook/bart-large-mnli',
-      inputs: hodDescription,
-      parameters: { candidate_labels: categories },
-    }),
-  ])
-
-  const caption =
-    captionResult.status === 'fulfilled'
-      ? (captionResult.value as { generated_text?: string }).generated_text ?? ''
-      : ''
-
-  const detectedObjects: string[] = []
-  if (objectResult.status === 'fulfilled' && Array.isArray(objectResult.value)) {
-    for (const obj of objectResult.value as { label: string; score: number }[]) {
-      if (obj.score > 0.7 && !detectedObjects.includes(obj.label)) {
-        detectedObjects.push(obj.label)
-      }
-    }
-  }
-
-  let verifiedCategory = category
-  if (classifyResult.status === 'fulfilled' && Array.isArray(classifyResult.value)) {
-    const top = classifyResult.value[0] as { labels?: string[]; scores?: number[] } | undefined
-    if (top?.labels?.[0] && top?.scores?.[0] && top.scores[0] > 0.5) {
-      verifiedCategory = top.labels[0]
-    }
-  }
-
-  // Build tags from detected objects + verified category
-  const tags = [...new Set([...detectedObjects.slice(0, 5), verifiedCategory])]
-
-  // Build filename slug from caption, falling back to HOD description
-  const slugSource = caption || hodDescription
-  const captionWords = slugSource.split(/\s+/).slice(0, 6).join(' ')
-  const filename_slug = slugify(captionWords)
-
-  return {
-    filename_slug: filename_slug || slugify(hodDescription),
-    ai_description: caption,
-    tags,
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -123,36 +61,12 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerClient()
-
-    const { data: dept } = await supabase
-      .from('hod_departments')
-      .select('name')
-      .eq('id', departmentId)
-      .single()
-
     const buffer = Buffer.from(await file.arrayBuffer())
-    const imageBlob = new Blob([buffer], { type: file.type })
-
-    // Resolve the category list for zero-shot verification from the form data
-    const categoriesRaw = formData.get('categories') as string | null
-    const categories = categoriesRaw
-      ? categoriesRaw.split(',').map((c) => c.trim()).filter(Boolean)
-      : [category]
-
-    let aiResult: { filename_slug: string; ai_description: string; tags: string[] }
-    try {
-      aiResult = await analyseImage(imageBlob, hodDescription.trim(), category, categories)
-    } catch {
-      aiResult = {
-        filename_slug: slugify(hodDescription.trim()),
-        ai_description: '',
-        tags: [],
-      }
-    }
 
     const dateStr = reportDate.replace(/-/g, '_')
     const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
-    const generatedFilename = `${dateStr}_hod_daily_reports_${slugify(departmentSlug)}_${aiResult.filename_slug}.${ext}`
+    const descriptionSlug = slugify(hodDescription.trim())
+    const generatedFilename = `${dateStr}_hod_daily_reports_${slugify(departmentSlug)}_${descriptionSlug}.${ext}`
     const monthFolder = reportDate.slice(0, 7).replace('-', '_')
     const storagePath = `${departmentSlug}/${monthFolder}/${generatedFilename}`
 
@@ -176,8 +90,8 @@ export async function POST(request: NextRequest) {
         original_filename: file.name,
         generated_filename: generatedFilename,
         hod_description: hodDescription.trim(),
-        ai_description: aiResult.ai_description || null,
-        ai_tags: aiResult.tags.length > 0 ? aiResult.tags : null,
+        ai_description: null,
+        ai_tags: null,
         context_category: category,
         report_date: reportDate,
         file_size_bytes: file.size,
@@ -208,8 +122,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id: mediaRow?.id,
       generated_filename: generatedFilename,
-      ai_description: aiResult.ai_description,
-      ai_tags: aiResult.tags,
+      ai_description: null,
+      ai_tags: [],
       thumbnail_url: signedUrlData?.signedUrl ?? null,
       storage_path: storagePath,
     })

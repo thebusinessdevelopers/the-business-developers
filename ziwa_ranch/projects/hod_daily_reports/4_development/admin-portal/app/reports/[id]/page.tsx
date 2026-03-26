@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase-server'
+import { getAdminUser, logAdminActivity } from '@/lib/admin-auth'
 import { getFormBySlug, LEGACY_HOUSEKEEPING_CONFIG } from '@/config/forms'
 import { getSubmissionStatus, getStatusLabel, getStatusBadgeClasses } from '@/lib/submission-status'
 import { EditHistoryEntry } from '@/types'
@@ -70,10 +71,31 @@ export default async function ReportDetailPage({ params }: PageProps) {
     .eq('report_id', id)
     .order('created_at')
 
-  const media = (reportMedia ?? []) as MediaItem[]
+  const mediaWithUrls: MediaItem[] = []
+  for (const item of reportMedia ?? []) {
+    const { data: urlData } = await supabase.storage
+      .from('hod-report-media')
+      .createSignedUrl(item.storage_path, 3600)
+    mediaWithUrls.push({
+      ...item,
+      signed_url: urlData?.signedUrl ?? undefined,
+    } as MediaItem)
+  }
+
+  const media = mediaWithUrls
 
   const r = report as unknown as ReportData
   const status = getSubmissionStatus(r.submitted_at, r.report_date)
+
+  const admin = await getAdminUser()
+  if (admin) {
+    logAdminActivity(admin.id, 'report_viewed', {
+      report_id: r.id,
+      department: r.hod_departments.name,
+      report_date: r.report_date,
+      admin_title: admin.admin_title,
+    }).catch(() => {})
+  }
   const isLegacyHousekeeping = r.hod_departments.slug === 'housekeeping' && 'room_status' in r.report_data && !('rooms' in r.report_data)
   const formConfig = isLegacyHousekeeping ? LEGACY_HOUSEKEEPING_CONFIG : getFormBySlug(r.hod_departments.slug)
 
@@ -137,10 +159,7 @@ export default async function ReportDetailPage({ params }: PageProps) {
 
       {media.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 mt-6">
-          <PhotoGallery
-            media={media}
-            supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
-          />
+          <PhotoGallery media={media} />
         </div>
       )}
 

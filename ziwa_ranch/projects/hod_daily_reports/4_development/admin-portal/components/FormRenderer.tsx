@@ -1,14 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { DepartmentFormConfig, FormField, EditHistoryEntry } from '@/types'
-import RepeaterField from './RepeaterField'
-import NumberStepper from './NumberStepper'
+import { DepartmentFormConfig } from '@/types'
 import StockProjectionDisplay from './StockProjectionDisplay'
 import { getDeadlineBadge, isWithinEditWindow, formatDateTimeKampala, type DeadlineBadge } from '@/lib/submission-status'
-import CalculationHint from './CalculationHint'
-import { getCalculationsForSlug, calculateVehicleDistance } from '@/config/calculations'
 import RoomGrid, { type RoomsValue } from './RoomGrid'
+import FieldRenderer from './form/FieldRenderer'
+import { validateForm } from './form/FormValidation'
 
 interface FormRendererProps {
   config: DepartmentFormConfig
@@ -39,35 +37,6 @@ interface DraftData {
 
 const inputClass =
   'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ziwa-500 focus:border-transparent'
-
-function diffValues(
-  oldVals: Record<string, unknown>,
-  newVals: Record<string, unknown>,
-  config: DepartmentFormConfig
-): { field: string; old_value: unknown; new_value: unknown }[] {
-  const changes: { field: string; old_value: unknown; new_value: unknown }[] = []
-  const allKeys = new Set([...Object.keys(oldVals), ...Object.keys(newVals)])
-
-  const labelMap = new Map<string, string>()
-  for (const section of config.sections) {
-    for (const field of section.fields) {
-      labelMap.set(field.name, field.label)
-    }
-  }
-
-  for (const key of allKeys) {
-    const oldVal = oldVals[key]
-    const newVal = newVals[key]
-    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-      changes.push({
-        field: labelMap.get(key) || key,
-        old_value: oldVal ?? null,
-        new_value: newVal ?? null,
-      })
-    }
-  }
-  return changes
-}
 
 export default function FormRenderer({
   config,
@@ -131,7 +100,6 @@ export default function FormRenderer({
   const effectiveEditReportId = editMode ? editReportId : existingReport?.id
 
   const submittedBy = nameSelection === '__other__' ? customName.trim() : nameSelection
-  const calculations = getCalculationsForSlug(config.slug)
   const hasStockConfig = !!config.stockConfig
   const isStockEntryDay = hasStockConfig && isMonday(reportDate)
 
@@ -253,27 +221,6 @@ export default function FormRenderer({
     setValues((prev) => ({ ...prev, [name]: value }))
   }
 
-  function getStringValue(name: string): string {
-    return String(values[name] ?? '')
-  }
-
-  function validate(): string | null {
-    if (!effectiveEditMode && !submittedBy) return 'Please enter your name.'
-    if (!effectiveEditMode && !reportDate) return 'Please select a report date.'
-
-    for (const section of config.sections) {
-      for (const field of section.fields) {
-        if (field.required) {
-          const val = values[field.name]
-          if (val === undefined || val === null || val === '') {
-            return `"${field.label}" is required.`
-          }
-        }
-      }
-    }
-    return null
-  }
-
   async function checkDuplicate(): Promise<string | null> {
     if (effectiveEditMode) return null
     try {
@@ -292,7 +239,7 @@ export default function FormRenderer({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const validationError = validate()
+    const validationError = validateForm({ config, values, effectiveEditMode, submittedBy, reportDate })
     if (validationError) {
       setError(validationError)
       return
@@ -305,41 +252,26 @@ export default function FormRenderer({
       const { supabase } = await import('@/lib/supabase')
 
       if (effectiveEditMode && effectiveEditReportId) {
-        const baseValues = inlineEditMode ? (existingReport?.report_data ?? {}) : (initialValues ?? {})
-        const changes = diffValues(baseValues, values, config)
-        if (changes.length === 0) {
+        const res = await fetch('/api/edit-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reportId: effectiveEditReportId,
+            reportData: values,
+            editorName: editorName ?? submittedBy ?? 'Admin',
+          }),
+        })
+        const result = await res.json()
+        if (!res.ok) {
+          setError(result.error || 'Failed to save edit.')
+          setSubmitting(false)
+          return
+        }
+        if (result.noChanges) {
           setError('No changes detected.')
           setSubmitting(false)
           return
         }
-
-        const { data: existing } = await supabase
-          .from('hod_daily_reports')
-          .select('edit_history')
-          .eq('id', effectiveEditReportId)
-          .single()
-
-        const prevHistory = (existing?.edit_history as EditHistoryEntry[] | null) ?? []
-        const newEntry: EditHistoryEntry = {
-          edited_by: editorName ?? submittedBy,
-          edited_at: new Date().toISOString(),
-          changes,
-        }
-
-        const { error: updateError } = await supabase
-          .from('hod_daily_reports')
-          .update({
-            report_data: values,
-            edited_at: new Date().toISOString(),
-            last_edited_by: editorName ?? submittedBy,
-            edit_history: [...prevHistory, newEntry],
-            acknowledged_at: null,
-            acknowledged_by: null,
-            review_comments: null,
-          })
-          .eq('id', effectiveEditReportId)
-
-        if (updateError) throw updateError
         onSuccess?.(effectiveEditReportId)
         return
       }
@@ -442,177 +374,6 @@ export default function FormRenderer({
     } finally {
       setSubmitting(false)
     }
-  }
-
-  function renderField(field: FormField) {
-    if (field.type === 'photo') {
-      const photos = Array.isArray(values[field.name]) ? values[field.name] as { id: string; ai_description?: string; hod_description?: string; category?: string; thumbnail_url?: string }[] : []
-      if (photos.length === 0) return null
-      return (
-        <div key={field.name} className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">{field.label}</label>
-          <div className="grid grid-cols-2 gap-3">
-            {photos.map((p) => (
-              <div key={p.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-                {p.thumbnail_url && (
-                  <img src={p.thumbnail_url} alt={p.ai_description || p.hod_description || ''} className="w-full h-28 object-cover" />
-                )}
-                <div className="p-2">
-                  {p.ai_description && <p className="text-xs text-gray-700">{p.ai_description}</p>}
-                  {p.hod_description && <p className="text-xs text-gray-400 italic">&ldquo;{p.hod_description}&rdquo;</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
-
-    if (field.type === 'room_grid') {
-      const roomsVal = (values[field.name] ?? {}) as RoomsValue
-      return (
-        <RoomGrid
-          key={field.name}
-          value={roomsVal}
-          onChange={(updated) => setValue(field.name, updated)}
-          readOnly={readOnly}
-        />
-      )
-    }
-
-    if (field.type === 'repeater') {
-      const raw = values[field.name]
-      const rows = (Array.isArray(raw) ? raw : []) as Record<string, string | number>[]
-      return (
-        <RepeaterField
-          key={field.name}
-          fieldName={field.name}
-          label={field.label}
-          subFields={field.sub_fields ?? []}
-          minRows={field.min_rows ?? 0}
-          value={rows}
-          onChange={(updated) => setValue(field.name, updated)}
-          departmentSlug={config.slug}
-        />
-      )
-    }
-
-    if (field.type === 'checkbox_group') {
-      const selected = (Array.isArray(values[field.name]) ? values[field.name] : []) as string[]
-      return (
-        <div key={field.name} className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">{field.label}</label>
-          <div className="grid grid-cols-2 gap-2">
-            {field.options?.map((opt) => (
-              <label key={opt} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selected.includes(opt)}
-                  onChange={(e) => {
-                    const next = e.target.checked
-                      ? [...selected, opt]
-                      : selected.filter((s) => s !== opt)
-                    setValue(field.name, next)
-                  }}
-                  className="rounded border-gray-300 text-ziwa-500 focus:ring-ziwa-500"
-                />
-                {opt}
-              </label>
-            ))}
-          </div>
-        </div>
-      )
-    }
-
-    if (field.type === 'number' && field.stepper) {
-      return (
-        <NumberStepper
-          key={field.name}
-          label={field.label}
-          value={Number(values[field.name] ?? 0)}
-          onChange={(val) => setValue(field.name, val)}
-          min={0}
-        />
-      )
-    }
-
-    return (
-      <div key={field.name} className="space-y-1">
-        <label className="block text-sm font-medium text-gray-700">
-          {field.label}
-          {field.required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-
-        {field.type === 'textarea' && (
-          <textarea
-            name={field.name}
-            value={getStringValue(field.name)}
-            onChange={(e) => setValue(field.name, e.target.value)}
-            placeholder={field.placeholder}
-            required={field.required}
-            rows={3}
-            className={inputClass}
-          />
-        )}
-
-        {field.type === 'number' && (
-          <>
-            <input
-              type="number"
-              name={field.name}
-              value={getStringValue(field.name)}
-              onChange={(e) => setValue(field.name, e.target.value === '' ? '' : Number(e.target.value))}
-              placeholder={field.placeholder}
-              required={field.required}
-              min={0}
-              className={inputClass}
-            />
-            {calculations.map((calc) => {
-              if (calc.targetField !== field.name || calc.type !== 'simple') return null
-              const suggested = calc.formula(values)
-              if (suggested === null) return null
-              const currentVal = Number(values[field.name])
-              return (
-                <CalculationHint
-                  key={calc.targetField}
-                  label={calc.label}
-                  suggestedValue={suggested.toLocaleString()}
-                  onAccept={() => setValue(field.name, suggested)}
-                  visible={!currentVal || currentVal !== suggested}
-                />
-              )
-            })}
-          </>
-        )}
-
-        {field.type === 'text' && (
-          <input
-            type="text"
-            name={field.name}
-            value={getStringValue(field.name)}
-            onChange={(e) => setValue(field.name, e.target.value)}
-            placeholder={field.placeholder}
-            required={field.required}
-            className={inputClass}
-          />
-        )}
-
-        {field.type === 'select' && (
-          <select
-            name={field.name}
-            value={getStringValue(field.name)}
-            onChange={(e) => setValue(field.name, e.target.value)}
-            required={field.required}
-            className={inputClass}
-          >
-            <option value="">Select...</option>
-            {field.options?.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-        )}
-      </div>
-    )
   }
 
   if (readOnly) {
@@ -828,7 +589,7 @@ export default function FormRenderer({
               Edit this report
             </button>
           ) : (
-            <p className="text-xs text-gray-500">Editing window closed (deadline: 12:00 the day after).</p>
+            <p className="text-xs text-gray-500">Editing window closed (deadline: 6:00 PM the day after).</p>
           )}
         </div>
       )}
@@ -861,7 +622,17 @@ export default function FormRenderer({
               )}
               {!isDisabledSection && (
                 <div className="space-y-4">
-                  {section.fields.map((field) => renderField(field))}
+                  {section.fields.map((field) => (
+                    <FieldRenderer
+                      key={field.name}
+                      field={field}
+                      values={values}
+                      setValue={setValue}
+                      disabled={false}
+                      readOnly={readOnly}
+                      slug={config.slug}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -874,7 +645,7 @@ export default function FormRenderer({
           {error}
           {duplicateReportId && (
             <a
-              href={`/report/${config.slug}/edit/${duplicateReportId}`}
+              href={`/reports/${duplicateReportId}/edit`}
               className="block mt-2 text-ziwa-600 font-medium hover:underline"
             >
               Edit the existing report &rarr;

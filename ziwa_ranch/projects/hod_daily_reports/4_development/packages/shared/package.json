@@ -1,0 +1,19 @@
+{
+  "name": "@hod/shared",
+  "version": "0.0.1",
+  "private": true,
+  "exports": {
+    "./types": "./types/index.ts",
+    "./config/*": "./config/*.ts",
+    "./lib/*": "./lib/*.ts",
+    "./components/*": "./components/*.tsx"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "next": ">=14"
+  },
+  "dependencies": {
+    "@huggingface/inference": "^4.13.15"
+  }
+}

@@ -171,6 +171,12 @@ export default async function DashboardHome() {
 
       <DailyDigestCard />
 
+      <div className="text-right -mt-4">
+        <Link href="/analysis" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+          Full analysis (daily, weekly, monthly) &rarr;
+        </Link>
+      </div>
+
       <section>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Today&apos;s Status</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">

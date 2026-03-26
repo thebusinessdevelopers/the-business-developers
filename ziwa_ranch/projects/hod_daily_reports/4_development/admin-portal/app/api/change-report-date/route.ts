@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { verifyAdminAuth } from '@/lib/admin-auth'
+import { verifyAdminAuth, getAdminUser, logAdminActivity } from '@/lib/admin-auth'
 import { createServerClient } from '@/lib/supabase-server'
 
 export async function POST(request: Request) {
@@ -7,6 +7,7 @@ export async function POST(request: Request) {
     const authError = await verifyAdminAuth()
     if (authError) return authError
 
+    const admin = await getAdminUser()
     const { reportId, newDate } = await request.json()
 
     if (!reportId || !newDate) {
@@ -43,9 +44,10 @@ export async function POST(request: Request) {
       )
     }
 
+    const editor = admin?.hod_name ?? 'Admin'
     const prevHistory = (report.edit_history as { edited_by: string; edited_at: string; changes: unknown[] }[] | null) ?? []
     const historyEntry = {
-      edited_by: 'Admin',
+      edited_by: editor,
       edited_at: new Date().toISOString(),
       changes: [{ field: 'Report date', old_value: report.report_date, new_value: newDate }],
     }
@@ -55,13 +57,23 @@ export async function POST(request: Request) {
       .update({
         report_date: newDate,
         edited_at: new Date().toISOString(),
-        last_edited_by: 'Admin',
+        last_edited_by: editor,
         edit_history: [...prevHistory, historyEntry],
       })
       .eq('id', reportId)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (admin) {
+      await logAdminActivity(admin.id, 'report_date_changed', {
+        report_id: reportId,
+        department_id: report.department_id,
+        old_date: report.report_date,
+        new_date: newDate,
+        admin_title: admin.admin_title,
+      }).catch(() => {})
     }
 
     return NextResponse.json({ ok: true })

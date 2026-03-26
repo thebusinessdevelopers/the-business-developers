@@ -11,21 +11,17 @@ interface MediaItem {
   ai_tags: string[] | null
   context_category: string
   created_at: string
+  signed_url?: string
 }
 
 interface PhotoGalleryProps {
   media: MediaItem[]
-  supabaseUrl: string
 }
 
-export default function PhotoGallery({ media, supabaseUrl }: PhotoGalleryProps) {
+export default function PhotoGallery({ media }: PhotoGalleryProps) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   if (media.length === 0) return null
-
-  function getPublicUrl(path: string) {
-    return `${supabaseUrl}/storage/v1/object/authenticated/hod-report-media/${path}`
-  }
 
   return (
     <div className="space-y-3">
@@ -38,12 +34,18 @@ export default function PhotoGallery({ media, supabaseUrl }: PhotoGalleryProps) 
             onClick={() => setExpanded(expanded === item.id ? null : item.id)}
           >
             <div className="relative">
-              <img
-                src={getPublicUrl(item.storage_path)}
-                alt={item.ai_description || item.hod_description}
-                className="w-full h-32 object-cover"
-                loading="lazy"
-              />
+              {item.signed_url ? (
+                <img
+                  src={item.signed_url}
+                  alt={item.ai_description || item.hod_description}
+                  className="w-full h-32 object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-32 bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                  Image unavailable
+                </div>
+              )}
               <span className="absolute bottom-1 right-1 text-xs bg-black/60 text-white rounded px-1.5 py-0.5">
                 {item.context_category}
               </span>

@@ -16,7 +16,7 @@ Ziwa Rhino And Wildlife Ranch has 15 departments, each with a head of department
 | Depth | Quick |
 | Staging | Phased — Phase 1 (web portal + dashboard), Phase 2 (WhatsApp), Phase 3 (AI agent), Phase 4 (insights & automation) |
 | Complexity stance | Simple as possible — functional first, iterate later |
-| Current phase | **v2.0 in production. v2.1 built on dev branch (Phases A–I: photos, inventory grid, AI, admin enhancements).** Ready for v2.2 planning. |
+| Current phase | **v2.0 in production. v2.1–v2.3 built on dev branch. v2.3: InventoryGrid remove buttons, individual admin accounts, comprehensive activity tracking, Head Office department.** Ready for deploy or v2.4 planning. |
 | Started | 14 March 2026 |
 
 ## Folder structure
@@ -34,8 +34,8 @@ hod_daily_reports/
 │   ├── materials_tools_list.md ← Tech stack and services
 │   └── build_rules.md          ← Standards, principles, and scope boundaries
 ├── 4_development/
-│   ├── next_chat_handover.md   ← v1.x build state (historical)
-│   ├── next_chat_handover_v2.md ← **v2 build handover — read this for any v2 dev task**
+│   ├── next_chat_handover_v2.md ← v2.0–v2.1 build handover (historical)
+│   ├── next_chat_handover_v3.md ← **v3 build handover — read this for any current dev task**
 │   ├── 01_portal_build.md      ← Phase 1 build log
 │   ├── 02_whatsapp_build.md    ← Phase 2 build log + setup checklist
 │   ├── portal/                 ← HOD portal Next.js source (deployed to Netlify)
@@ -50,7 +50,10 @@ hod_daily_reports/
     ├── v1.6/snapshot.md        ← V1.6 snapshot
     ├── v1.8/snapshot.md        ← V1.8 snapshot
     ├── v1.9/snapshot.md        ← V1.9 snapshot
-    └── v2.0/snapshot.md        ← V2.0 snapshot (current)
+    ├── v2.0/snapshot.md        ← V2.0 snapshot (production)
+    ├── v2.1/snapshot.md        ← V2.1 snapshot (dev branch)
+    ├── v2.2/snapshot.md        ← V2.2 snapshot (dev branch)
+    └── v2.3/snapshot.md        ← V2.3 snapshot (dev branch, current)
 ```
 
 ## Context loading
@@ -61,8 +64,8 @@ Read this file only. You know what the project is, where everything lives, and w
 ### Standard
 Read in order:
 1. This file (done)
-2. `4_development/next_chat_handover_v2.md` — **v2 build handover (read this for any v2 work)**
-3. `4_development/next_chat_handover.md` — v1.x build state (historical reference)
+2. `4_development/next_chat_handover_v3.md` — **v3 build handover (read this for any current work)**
+3. `4_development/next_chat_handover_v2.md` — v2.0–v2.1 build state (historical reference)
 4. `1_context/project_summary.md` — plain-language overview
 5. `3_architecture/design.md` — Phase 1 system design
 6. `3_architecture/build_rules.md` — scope boundaries and standards
@@ -73,7 +76,7 @@ Everything in Standard, then:
 - `3_architecture/materials_tools_list.md`
 - `4_development/02_whatsapp_build.md` — Phase 2 setup checklist and progress
 - `4_development/01_portal_build.md` — Phase 1 build history
-- `versions/v2.0/snapshot.md` — current version snapshot
+- `versions/v2.2/snapshot.md` — current version snapshot
 - Source code in `4_development/portal/config/forms.ts` and `components/FormRenderer.tsx`
 
 ## Key people
@@ -90,7 +93,7 @@ Everything in Standard, then:
 |---|---|
 | Supabase project | Shared with restaurant management system — `inidzwfjnkyinxhvbrdt` |
 | Supabase URL | `https://inidzwfjnkyinxhvbrdt.supabase.co` |
-| DB tables | `hod_departments` (15), `hod_daily_reports`, `hod_verified_stock`, `hod_item_library`, `hod_drafts`, `hod_error_log`, `hod_users`, `hod_sessions`, `hod_activity_log` |
+| DB tables | `hod_departments` (16), `hod_daily_reports`, `hod_verified_stock`, `hod_item_library`, `hod_drafts`, `hod_error_log`, `hod_users`, `hod_sessions`, `hod_activity_log`, `hod_report_media`, `hod_announcements`, `hod_analysis_cache` |
 | DB timezone | `Africa/Kampala` |
 | Frontend (HOD) | Next.js 16, Tailwind v4, React 19 — code at `4_development/portal/` |
 | Frontend (Admin) | Next.js 16, Tailwind v4, React 19 — code at `4_development/admin-portal/` |
@@ -120,3 +123,6 @@ Everything in Standard, then:
 - 26/03/2026 — **v2.0 Phase F complete.** Documentation: updated context.md, project_summary.md, build_rules.md. Created HOD user guide and admin guide in `5_operation/`. Finalised snapshot and handover.
 - 26/03/2026 — **Deployment and branching setup.** Both portals now deploy from GitHub via Netlify. Admin portal repo created (`hod_admin_portal`). Dev/prod branching on all repos — `main` for production, `dev` for development previews.
 - 26/03/2026 — **Admin portal hotfix.** Fixed two issues: (1) RSC serialization error on report detail page — the Server Component passed an unserializable `onSuccess` function to the `FormRenderer` Client Component, causing digest `1034226636` in production. Made `onSuccess`/`departmentId` optional and removed them from the readOnly call site. (2) Netlify 404 on all routes — the `@netlify/plugin-nextjs` npm dependency conflicted with Netlify's site-level plugin system, preventing SSR function generation. Removed the npm dependency and registered the plugin via Netlify's site configuration.
+- 26/03/2026 — **v2.1 Phases A–I built on dev branch.** Photos, inventory grid, activity log, password self-service, announcements, pre-fill, admin overview, security, HF AI integration.
+- 26/03/2026 — **v2.2 built on dev branch.** Seven technical improvements: instant photo uploads (AI decoupled to background), OpenRouter (Claude Sonnet 4.6) for digest/urgency/analysis, npm workspace with `@hod/shared` package (16 files consolidated), FormRenderer split into modules, admin edits behind API routes with logging, new Analysis tab with cached period-locked results, and a cleanup pass fixing dead code and broken UI.
+- 26/03/2026 — **v2.3 built on dev branch.** InventoryGrid explicit remove buttons. Individual admin accounts (7 users, session-based auth) replacing shared password. Comprehensive admin activity tracking with role-based visibility (senior/standard tiers). New Head Office (Reservations) department — 16th department for Kampala-based reservations team.

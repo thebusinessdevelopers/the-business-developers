@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { verifyAdminAuth } from '@/lib/admin-auth'
+import { verifyAdminAuth, getAdminUser, logAdminActivity } from '@/lib/admin-auth'
 import { createServerClient } from '@/lib/supabase-server'
 
 export async function POST(request: Request) {
@@ -7,6 +7,7 @@ export async function POST(request: Request) {
     const authError = await verifyAdminAuth()
     if (authError) return authError
 
+    const admin = await getAdminUser()
     const { reportId, departmentName } = await request.json()
 
     if (!reportId || !departmentName) {
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
 
     const { data: report } = await supabase
       .from('hod_daily_reports')
-      .select('id, hod_departments(name)')
+      .select('id, report_date, department_id, hod_departments(name)')
       .eq('id', reportId)
       .single()
 
@@ -37,6 +38,16 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (admin) {
+      await logAdminActivity(admin.id, 'report_deleted', {
+        report_id: reportId,
+        department_name: departmentName,
+        department_id: report.department_id,
+        report_date: report.report_date,
+        admin_title: admin.admin_title,
+      }).catch(() => {})
     }
 
     return NextResponse.json({ ok: true })

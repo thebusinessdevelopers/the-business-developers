@@ -1000,6 +1000,116 @@ export const DEPARTMENT_FORMS: DepartmentFormConfig[] = [
       },
     ],
   },
+  {
+    slug: 'head-office',
+    name: 'Head Office',
+    hods: ['Florence'],
+    substitutes: ['Julie', 'Isaac'],
+    sections: [
+      {
+        title: 'Confirmed Bookings',
+        fields: [
+          { name: 'confirmed_portal', label: 'Bookings Portal', type: 'number', stepper: true },
+          { name: 'confirmed_whatsapp', label: 'WhatsApp', type: 'number', stepper: true },
+          { name: 'confirmed_phone', label: 'Phone', type: 'number', stepper: true },
+          { name: 'confirmed_walkins', label: 'Walk-Ins', type: 'number', stepper: true },
+        ],
+      },
+      {
+        title: 'Provisional Bookings',
+        fields: [
+          { name: 'provisional_portal', label: 'Bookings Portal', type: 'number', stepper: true },
+          { name: 'provisional_whatsapp', label: 'WhatsApp', type: 'number', stepper: true },
+          { name: 'provisional_phone', label: 'Phone', type: 'number', stepper: true },
+          { name: 'provisional_walkins', label: 'Walk-Ins', type: 'number', stepper: true },
+        ],
+      },
+      {
+        title: 'Cancelled Bookings',
+        fields: [
+          {
+            name: 'cancelled_bookings',
+            label: 'Cancelled bookings',
+            type: 'repeater',
+            min_rows: 0,
+            sub_fields: [
+              { name: 'company_name', label: 'Company / Individual', type: 'text', placeholder: 'e.g. ABC Tours' },
+              { name: 'reason', label: 'Reason for cancellation', type: 'text', placeholder: 'e.g. Guests stuck in transit' },
+              { name: 'arrival_date', label: 'Arrival date', type: 'text', placeholder: 'e.g. 01 May 2026' },
+              { name: 'departure_date', label: 'Departure date', type: 'text', placeholder: 'e.g. 05 May 2026' },
+              { name: 'other_info', label: 'Other information (optional)', type: 'textarea', placeholder: 'Room info, group info, activity info...' },
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Activities Booked for Tomorrow',
+        fields: [
+          { name: 'act_rhino_trekking', label: 'Rhino Trekking', type: 'number', stepper: true },
+          { name: 'act_shoebill_trekking', label: 'Shoebill Trekking', type: 'number', stepper: true },
+          { name: 'act_night_walk', label: 'Night Walk', type: 'number', stepper: true },
+          { name: 'act_nature_walk', label: 'Nature Walk', type: 'number', stepper: true },
+          { name: 'act_birding', label: 'Birding', type: 'number', stepper: true },
+        ],
+      },
+      {
+        title: 'POPs Received',
+        fields: [
+          {
+            name: 'pops_received',
+            label: 'Proof of payments received',
+            type: 'repeater',
+            min_rows: 0,
+            sub_fields: [
+              { name: 'company_name', label: 'Company / Individual', type: 'text', placeholder: 'e.g. John Doe' },
+              { name: 'amount_paid', label: 'Amount paid', type: 'text', placeholder: 'e.g. $900 or 3,000,000 UGX' },
+              { name: 'arrival_date', label: 'Date of arrival', type: 'text', placeholder: 'e.g. 05 May 2026' },
+              { name: 'departure_date', label: 'Date of departure', type: 'text', placeholder: 'e.g. 08 May 2026' },
+              { name: 'other_info', label: 'Other information (optional)', type: 'textarea', placeholder: 'Room info, group info, activity info...' },
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Confirmed Payments',
+        fields: [
+          {
+            name: 'confirmed_payments',
+            label: 'Confirmed payments',
+            type: 'repeater',
+            min_rows: 0,
+            sub_fields: [
+              { name: 'company_name', label: 'Company / Individual', type: 'text', placeholder: 'e.g. Mr. YZ' },
+              { name: 'amount_received', label: 'Amount received', type: 'text', placeholder: 'e.g. $10.50 or 50,000 UGX' },
+              { name: 'other_info', label: 'Other information (optional)', type: 'textarea', placeholder: 'Payment method, reference...' },
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Special Requests',
+        fields: [
+          {
+            name: 'special_requests',
+            label: 'Special requests (FOCs, discounts, late entries, early/late check-in/check-out)',
+            type: 'repeater',
+            min_rows: 0,
+            sub_fields: [
+              { name: 'company_name', label: 'Company / Individual', type: 'text', placeholder: 'e.g. LMZ Adventures' },
+              { name: 'request', label: 'Request explained', type: 'text', placeholder: 'e.g. FAM trip – 4 agents' },
+              { name: 'approved_by', label: 'Approved by', type: 'select', options: ['Chairman', 'CEO', 'MD', 'GM'] },
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Notes',
+        fields: [
+          { name: 'challenges_successes', label: 'Challenges or successes to note', type: 'textarea', placeholder: 'Any issues, highlights or observations from today...' },
+        ],
+      },
+    ],
+  },
 ]
 
 const GENERAL_PHOTO_SECTION = {

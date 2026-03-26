@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAdminAuth } from '@/lib/admin-auth'
 import { createServerClient } from '@/lib/supabase-server'
-import { getHfClient } from '@/lib/hf'
+import { callOpenRouter } from '@/lib/openrouter'
 
 function getKampalaDateStr(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Kampala' })
@@ -16,49 +16,60 @@ export async function GET() {
 
   const { data: reports } = await supabase
     .from('hod_daily_reports')
-    .select('report_data, department_id')
+    .select('report_data, department_id, hod_departments(name)')
     .eq('report_date', today)
 
   if (!reports || reports.length === 0) {
     return NextResponse.json({ digest: null, report_count: 0 })
   }
 
-  const notes: string[] = []
+  const departmentNotes: string[] = []
   for (const r of reports) {
     const data = r.report_data as Record<string, unknown> | null
     if (!data) continue
     const text = String(data.challenges_successes ?? '').trim()
-    if (text.length > 5) notes.push(text)
+    const dept = r.hod_departments as unknown as { name: string } | { name: string }[] | null
+    const deptName = (Array.isArray(dept) ? dept[0]?.name : dept?.name) ?? 'Unknown'
+    if (text.length > 3) {
+      departmentNotes.push(`${deptName}: ${text}`)
+    }
   }
 
-  if (notes.length === 0) {
-    return NextResponse.json({ digest: null, report_count: reports.length })
+  if (departmentNotes.length === 0) {
+    return NextResponse.json({
+      digest: `${reports.length} department(s) reported today. No notable challenges or highlights were raised.`,
+      report_count: reports.length,
+      notes_count: 0,
+    })
   }
-
-  const combined = notes.join('\n---\n')
 
   try {
-    const hf = getHfClient()
-    const result = await hf.summarization({
-      model: 'facebook/bart-large-cnn',
-      inputs: combined.slice(0, 4000),
-      parameters: {
-        max_length: 120,
-        min_length: 30,
-      },
+    const result = await callOpenRouter({
+      messages: [
+        {
+          role: 'system',
+          content: `You are an executive assistant at Ziwa Rhino And Wildlife Ranch in Uganda. You summarise daily department reports for the General Manager. Be concise, factual, and action-oriented. If a department says "nothing" or similar, treat it as all-clear — do not invent content. Highlight any items requiring action. Keep the summary under 150 words. Do not use markdown formatting.`,
+        },
+        {
+          role: 'user',
+          content: `Today's department notes (${reports.length} departments reported, ${departmentNotes.length} with content):\n\n${departmentNotes.join('\n\n')}`,
+        },
+      ],
+      maxTokens: 300,
+      reasoningEffort: 'medium',
     })
 
     return NextResponse.json({
-      digest: result.summary_text ?? null,
+      digest: result.content,
       report_count: reports.length,
-      notes_count: notes.length,
+      notes_count: departmentNotes.length,
     })
   } catch (err) {
-    console.error('Daily digest summarisation failed:', err)
+    console.error('Daily digest failed:', err)
     return NextResponse.json({
       digest: null,
       report_count: reports.length,
-      notes_count: notes.length,
+      notes_count: departmentNotes.length,
       error: 'Summarisation unavailable',
     })
   }

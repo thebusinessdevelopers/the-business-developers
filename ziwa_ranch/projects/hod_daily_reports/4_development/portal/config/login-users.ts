@@ -69,4 +69,9 @@ export const LOGIN_DEPARTMENTS: LoginDepartment[] = [
     { username: 'craftshop.halima', displayName: 'Halima' },
     { username: 'craftshop.patience', displayName: 'Patience' },
   ]},
+  { label: 'Head Office', slug: 'head-office', users: [
+    { username: 'headoffice.florence', displayName: 'Florence' },
+    { username: 'headoffice.julie', displayName: 'Julie' },
+    { username: 'headoffice.isaac', displayName: 'Isaac' },
+  ]},
 ]

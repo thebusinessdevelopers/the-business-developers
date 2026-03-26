@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "workspaces": ["portal", "admin-portal", "packages/*"],
+  "devDependencies": {
+    "@types/react": "*",
+    "@types/react-dom": "*",
+    "@types/node": "*"
+  }
+}

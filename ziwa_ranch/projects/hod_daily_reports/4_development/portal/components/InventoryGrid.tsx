@@ -251,23 +251,45 @@ export default function InventoryGrid({
                     : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}
               >
-                <button
-                  type="button"
-                  onClick={() => toggleItem(item.name, item.unit, item.cost_per_unit)}
-                  className="w-full text-left"
-                >
-                  <p className={`text-sm font-medium ${isActive ? 'text-ziwa-700' : 'text-gray-700'}`}>
-                    {item.name}
-                  </p>
-                  {!isActive && prev && (
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Last: {prev.quantity} {prev.unit}
-                    </p>
-                  )}
-                  {!isActive && item.unit && !prev && (
-                    <p className="text-xs text-gray-400 mt-0.5">{item.unit}</p>
-                  )}
-                </button>
+                {isActive ? (
+                  <div className="flex items-start justify-between gap-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleItem(item.name, item.unit, item.cost_per_unit)}
+                      className="text-left flex-1 min-w-0"
+                    >
+                      <p className="text-sm font-medium text-ziwa-700 truncate">{item.name}</p>
+                    </button>
+                    {value.length > minItems && (
+                      <button
+                        type="button"
+                        onClick={() => toggleItem(item.name, item.unit, item.cost_per_unit)}
+                        className="shrink-0 w-7 h-7 rounded-md bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-colors"
+                        aria-label={`Remove ${item.name}`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => toggleItem(item.name, item.unit, item.cost_per_unit)}
+                    className="w-full text-left"
+                  >
+                    <p className="text-sm font-medium text-gray-700">{item.name}</p>
+                    {prev && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Last: {prev.quantity} {prev.unit}
+                      </p>
+                    )}
+                    {item.unit && !prev && (
+                      <p className="text-xs text-gray-400 mt-0.5">{item.unit}</p>
+                    )}
+                  </button>
+                )}
 
                 {isActive && activeData && (
                   <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
