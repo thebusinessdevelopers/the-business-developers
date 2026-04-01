@@ -1,0 +1,17 @@
+# Exclude everything
+*
+.*
+
+# Re-include the BMS app path
+!ziwa_ranch
+!ziwa_ranch/projects
+!ziwa_ranch/projects/bms
+!ziwa_ranch/projects/bms/4_development
+!ziwa_ranch/projects/bms/4_development/app
+!ziwa_ranch/projects/bms/4_development/app/**
+
+# Exclude build artefacts within the app
+ziwa_ranch/projects/bms/4_development/app/node_modules
+ziwa_ranch/projects/bms/4_development/app/.next
+ziwa_ranch/projects/bms/4_development/app/out
+ziwa_ranch/projects/bms/4_development/app/tsconfig.tsbuildinfo
