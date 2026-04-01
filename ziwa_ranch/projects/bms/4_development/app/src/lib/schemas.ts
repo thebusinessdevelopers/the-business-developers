@@ -43,6 +43,91 @@ export const departmentSchema = z.object({
 
 export type DepartmentInput = z.infer<typeof departmentSchema>;
 
+// --- Stock Management ---
+
+export const STOCK_CATEGORIES = [
+  "produce",
+  "dry_goods",
+  "beverages",
+  "cleaning",
+  "maintenance",
+  "other",
+] as const;
+
+export const STOCK_UNITS = [
+  "kg",
+  "litres",
+  "units",
+  "bottles",
+  "bags",
+  "boxes",
+  "cartons",
+  "packets",
+  "tins",
+  "rolls",
+  "pairs",
+  "metres",
+  "other",
+] as const;
+
+export const stockItemSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  unit: z.string().min(1, "Unit is required"),
+  category: z.string().optional(),
+  minimum_quantity: z.number().min(0, "Cannot be negative"),
+  cost_per_unit: z.number().min(0).optional(),
+  supplier: z.string().optional(),
+});
+
+export type StockItemInput = z.infer<typeof stockItemSchema>;
+
+export const purchaseOrderLineSchema = z.object({
+  item_id: z.string().uuid(),
+  item_name: z.string(),
+  quantity_ordered: z.coerce.number().min(0),
+  quantity_received: z.coerce.number().min(0),
+  unit_cost: z.coerce.number().min(0).optional(),
+  unit: z.string(),
+});
+
+export type PurchaseOrderLineInput = z.infer<typeof purchaseOrderLineSchema>;
+
+export const purchaseOrderSchema = z.object({
+  supplier_name: z.string().min(1, "Supplier name is required"),
+  status: z.enum(["ordered", "received"]),
+  items: z.array(purchaseOrderLineSchema).min(1, "Add at least one item"),
+  notes: z.string().optional(),
+});
+
+export type PurchaseOrderInput = z.infer<typeof purchaseOrderSchema>;
+
+export const requisitionLineSchema = z.object({
+  item_id: z.string().uuid(),
+  item_name: z.string(),
+  quantity_requested: z.coerce.number().min(0.01, "Quantity must be greater than 0"),
+  quantity_approved: z.coerce.number().min(0).optional(),
+  unit: z.string(),
+  notes: z.string().optional(),
+});
+
+export type RequisitionLineInput = z.infer<typeof requisitionLineSchema>;
+
+export const requisitionSchema = z.object({
+  department_id: z.string().uuid(),
+  items: z.array(requisitionLineSchema).min(1, "Add at least one item"),
+  notes: z.string().optional(),
+});
+
+export type RequisitionInput = z.infer<typeof requisitionSchema>;
+
+export const adjustmentSchema = z.object({
+  item_id: z.string().uuid(),
+  quantity: z.number().refine((v) => v !== 0, "Quantity cannot be zero"),
+  notes: z.string().min(1, "A reason is required for adjustments"),
+});
+
+export type AdjustmentInput = z.infer<typeof adjustmentSchema>;
+
 const formFieldSchema: z.ZodType = z.lazy(() =>
   z.object({
     key: z.string().min(1),
