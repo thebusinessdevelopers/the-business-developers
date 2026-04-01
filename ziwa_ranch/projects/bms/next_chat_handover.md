@@ -2,10 +2,10 @@
 
 > **Purpose:** This file is the single brief for the next AI agent working on this project. Read it fully, load the context it specifies, execute the phase it defines, and produce your own handover at the end.
 >
-> **Produced by:** Chat 6 (Development — Stage 3 + Vercel Deployment Setup)
+> **Produced by:** Chat 7 (Development — Stage 4: Stock Management + Vercel Deployment)
 > **Date:** 1 April 2026
-> **Phase completed:** Development Stage 3 — Offline + Vercel deployment configuration
-> **Phase to execute:** Development Stage 4 — Stock
+> **Phase completed:** Development Stage 4 — Stock Management
+> **Phase to execute:** Development Stage 5 — Communication & Intelligence
 
 ---
 
@@ -31,7 +31,7 @@ BMS is a hospitality and tourism business management platform — a single unifi
 2. `ziwa_ranch/projects/bms/3_architecture/design.md` — full system design: schema, RLS, offline architecture, intelligence triggers, app structure, key decisions
 3. `ziwa_ranch/projects/bms/3_architecture/build_rules.md` — development rules, branch strategy, quality standards, build sequence
 4. `ziwa_ranch/projects/bms/3_architecture/prd/00_scope.md` — PRD map
-5. `ziwa_ranch/projects/bms/3_architecture/prd/03_stock_management.md` — Stage 4 PRD (what you will build against)
+5. `ziwa_ranch/projects/bms/3_architecture/prd/04_communication_intelligence.md` — Stage 5 PRD (what you will build against)
 6. `global/sops/new_project_v2/scripts/04_build.md` — the build script you are executing
 
 The application code lives at:
@@ -39,143 +39,173 @@ The application code lives at:
 
 ---
 
-## What was accomplished in Chat 6
+## What was accomplished in Chat 7
 
-### Stage 3 — Offline: complete
+### Vercel deployment: fully operational
 
-All PRD 02 offline requirements (R2.16–R2.21) are implemented.
+- Vercel CLI installed and authenticated as `thebusinessdevelopers`
+- `bms` project linked from repo root (`.vercel/project.json` in app folder)
+- GitHub integration connected — pushes to `dev`, `ziwa`, `main` auto-deploy
+- `.vercelignore` at repo root excludes all non-BMS content (keeps uploads ~92KB instead of 165MB)
+- `ziwa` branch pushed to remote
+- Environment variables confirmed across all environments (Development, Preview, Production)
+- Inner `.git` directory removed from app folder — app files tracked by outer repo
+- All BMS code committed and pushed to `dev`
+- **Live URL:** https://bms-kg6gryyps-thebusinessdevelopers-projects.vercel.app
 
-### Vercel deployment: configured
+### Stage 4 — Stock Management: complete
 
-The project is ready for Vercel deployment. Branch strategy:
-- `main` → Production
-- `ziwa` → Staging (Ziwa's live environment)
-- `dev` → Development preview
-
-The `ziwa` branch has been created from `dev`. Vercel project needs to be linked via the Vercel dashboard — see "Vercel setup instructions" section below.
+All PRD 03 requirements (R3.1–R3.26) are implemented.
 
 ### Files produced
 
-**PWA / Service Worker:**
-- `public/sw.js` — Service worker using Workbox (loaded via CDN importScripts). Caches app shell pages (NetworkFirst), static assets like JS/CSS/fonts (StaleWhileRevalidate), images (CacheFirst), and Supabase REST API GET responses (NetworkFirst). Handles SW lifecycle events (skipWaiting, clients.claim).
-- `src/components/sw-register.tsx` — Client component that registers the service worker on mount. Added to root layout.
-- `src/app/manifest.ts` — PWA web app manifest (standalone display mode, BMS branding)
+**Business logic:**
+- `src/lib/stock.ts` — Types (`StockItemRow`, `StockTransactionRow`, `RequisitionRow`, `PurchaseOrderRow`, `PurchaseOrderLine`, `RequisitionLine`), item name uniqueness check, PO transaction creation, requisition fulfilment transaction creation
+- `src/lib/schemas.ts` — Added: `stockItemSchema`, `purchaseOrderSchema`, `purchaseOrderLineSchema`, `requisitionSchema`, `requisitionLineSchema`, `adjustmentSchema`, `STOCK_CATEGORIES`, `STOCK_UNITS` constants
 
-**Vercel config:**
-- `vercel.json` — Enables deployments on `main`, `ziwa`, and `dev` branches
-- `next.config.ts` — Updated with security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy) and service worker headers (no-cache, Service-Worker-Allowed)
+**Stock item pages:**
+- `src/app/(app)/stock/page.tsx` — Stock overview dashboard with summary cards (items count, low stock count, pending requisitions, on-order POs), low stock warnings list, quick-action buttons, all items table
+- `src/app/(app)/stock/items/page.tsx` — Stock items list page (server component)
+- `src/app/(app)/stock/items/new/page.tsx` — New item form (admin only)
+- `src/app/(app)/stock/items/[id]/page.tsx` — Item detail with edit mode via `?edit=true` query param
+- `src/components/stock/stock-items-list.tsx` — Client component: searchable, filterable by category, toggle inactive items
+- `src/components/stock/stock-item-form.tsx` — Create/edit form with real-time name uniqueness check, category/unit dropdowns
+- `src/components/stock/stock-item-detail.tsx` — Item detail with stock level cards, recent transactions table, deactivate toggle
 
-**IndexedDB layer (idb):**
-- `src/lib/offline/db.ts` — Full IndexedDB schema and CRUD operations using `idb`. Five object stores: `syncQueue` (pending offline submissions with status index), `departments` (cached form schemas), `stockItems` (cached stock items with orgId index), `reports` (cached recent reports with departmentId index), `profile` (cached user profile). All typed with TypeScript interfaces.
+**Purchase orders (inbound stock):**
+- `src/app/(app)/stock/inbound/page.tsx` — PO list with supplier, date, status badges
+- `src/app/(app)/stock/inbound/new/page.tsx` — Record delivery form (admin only)
+- `src/app/(app)/stock/inbound/[id]/page.tsx` — PO detail with confirm delivery action
+- `src/components/stock/purchase-order-form.tsx` — Dynamic line items, calculates total, detects discrepancies, creates `inbound` stock_transactions on save
+- `src/components/stock/purchase-order-detail.tsx` — PO detail view with "Confirm Delivery" action for `ordered` status POs
 
-**Sync logic:**
-- `src/lib/offline/sync.ts` — `enqueueSubmission()` writes to IndexedDB queue, `drainSyncQueue()` processes all pending items by POSTing to `/api/sync`, handles success/conflict/failure states
-- `src/lib/offline/cache-warm.ts` — `warmDepartmentCache()` caches department schema, stock items, and recent reports to IndexedDB (called when loading submit page while online)
-- `src/lib/offline/use-online-status.ts` — `useOnlineStatus()` hook using `useSyncExternalStore` for reactive online/offline state
+**Requisitions:**
+- `src/app/(app)/stock/requisitions/page.tsx` — Requisition list (admin sees all, HOD sees own dept)
+- `src/app/(app)/stock/requisitions/new/page.tsx` — New requisition form
+- `src/app/(app)/stock/requisitions/[id]/page.tsx` — Requisition detail (fetches user names server-side to avoid ambiguous join)
+- `src/components/stock/requisition-form.tsx` — Dynamic line items with item picker showing current stock levels
+- `src/components/stock/requisition-detail.tsx` — Approve (with adjustable quantities), reject, fulfil actions. Fulfilment creates `requisition_fulfil` stock_transactions
 
-**Sync API endpoint:**
-- `src/app/api/sync/route.ts` — POST endpoint: validates payload with Zod, authenticates user, checks for existing report (idempotent if same sync_id), returns 409 conflict if different submission exists (server wins), inserts report + N/A sections, writes to `sync_queue` table for audit trail
+**Adjustments:**
+- `src/app/(app)/stock/adjustments/new/page.tsx` — Manual adjustment form (admin only)
+- `src/components/stock/adjustment-form.tsx` — Select item, enter +/- quantity, mandatory reason
 
-**Offline provider + UI:**
-- `src/components/offline-provider.tsx` — React context providing: `isOnline`, `queueCount`, `isSyncing`, `lastSyncResult`, `triggerSync()`, `refreshQueueCount()`. Auto-syncs when connectivity returns. Polls queue count every 5 seconds.
-- `src/components/sync-indicator.tsx` — Fixed bottom banner following the design spec: hidden when synced (silence = good), amber "Offline — working locally" when offline with empty queue, amber "Offline — N items queued" when offline with pending items, blue "Syncing..." during sync, red "N items waiting to sync" with Retry button when online but sync failed
+**Transaction history:**
+- `src/app/(app)/stock/transactions/page.tsx` — Full audit trail
+- `src/components/stock/transaction-history.tsx` — Client component: filterable by type, item, department, and searchable
 
-**Modified existing files:**
-- `src/components/reports/submit-form.tsx` — Rewritten for offline-first: if online, submits directly to Supabase (existing behaviour); if offline, writes to IndexedDB sync queue; if online submission fails mid-request, falls back to queue. Shows amber offline notice banner when offline. Warms IndexedDB cache with department data on mount.
-- `src/components/app-shell.tsx` — Wraps app content in `OfflineProvider`, includes `SyncIndicator`, caches user profile to IndexedDB on mount
-- `src/app/layout.tsx` — Added `ServiceWorkerRegister` component, PWA meta tags (apple-web-app-capable, theme-color, viewport)
+**Database migration:**
+- `supabase/migrations/00014_stock_threshold_dedup.sql` — Fixes `check_stock_threshold()` trigger to deduplicate flags (R3.20: only creates a new `intelligence_flags` entry if no open flag exists for that item) and uses correct severity levels (R3.21: `critical` when current_quantity ≤ 0)
 
 ### Build quality
 
 - **TypeScript:** Zero errors (`npx tsc --noEmit`)
 - **ESLint:** Zero errors (`npx eslint src/ --quiet`)
-- **Build:** Succeeds cleanly (`npm run build`)
+- **Build:** Succeeds cleanly (`npm run build` — 27 routes)
+- **Vercel:** Deployed and ready (build time 27s)
 - **React 19 compatible:** All hooks use proper patterns
-- **Mobile first:** Sync indicator is a fixed bottom banner, offline notice is inline
+- **Mobile first:** All stock screens use responsive tables with hidden columns on mobile
 
-### PRD 02 requirement coverage update
+### PRD 03 requirement coverage
 
 | Req | Status | Notes |
 |-----|--------|-------|
-| R2.16 | ✅ Done | Form loads from IndexedDB when offline (schema cached on last online access via cache-warm) |
-| R2.17 | ✅ Done | Offline submission writes to IndexedDB with client-generated sync_id, UI shows "Saved — will sync when online" |
-| R2.18 | ✅ Done | OfflineProvider auto-drains sync queue when connectivity returns, posts to /api/sync |
-| R2.19 | ✅ Done | Conflict handling: server version wins, user gets toast "already submitted from another session" |
-| R2.20 | ✅ Done | Sync indicator always visible when queue has items, disappears when empty, retry button on failure |
-| R2.21 | ✅ Done | Cached in IndexedDB: department form schema, stock items (name+unit), user profile. Reports cache infrastructure ready (populated on submit page visit). |
+| R3.1 | ✅ Done | Admin/manager can create stock items at `/stock/items` with all specified fields |
+| R3.2 | ✅ Done | Real-time uniqueness check before submission |
+| R3.3 | ✅ Done | Edit form at `/stock/items/[id]?edit=true` |
+| R3.4 | ✅ Done | Deactivate toggle on item detail; inactive items hidden from lists and dropdowns |
+| R3.5 | ✅ Done | Search by name, filter by category |
+| R3.6 | ✅ Done | Current quantity shown, items below minimum highlighted red |
+| R3.7 | ✅ Done | Record delivery at `/stock/inbound/new` with supplier, line items |
+| R3.8 | ✅ Done | `inbound` stock_transactions created for each received item; trigger updates current_quantity |
+| R3.9 | ✅ Done | Discrepancy detection sets PO status and creates `intelligence_flags` entry |
+| R3.10 | ✅ Done | PO can be saved as `ordered` and confirmed to `received` later |
+| R3.11 | ✅ Done | Inbound history at `/stock/inbound` sorted by date |
+| R3.12 | ✅ Done | HOD creates requisition at `/stock/requisitions/new` |
+| R3.13 | ✅ Done | New requisition has `pending` status (notification creation deferred to Stage 5) |
+| R3.14 | ✅ Done | Admin can approve with adjustable quantities per line item |
+| R3.15 | ✅ Done | Approval does not deduct stock |
+| R3.16 | ✅ Done | Fulfilment creates `requisition_fulfil` transactions with negative quantities |
+| R3.17 | ✅ Done | Rejected requisitions shown with `rejected` status (notification deferred to Stage 5) |
+| R3.18 | ✅ Done | HOD view filters to own department's requisitions |
+| R3.19 | ✅ Done | Trigger exists in migration 00013; updates `current_quantity += transaction.quantity` |
+| R3.20 | ✅ Done | Migration 00014 adds deduplication check — no duplicate open flags per item |
+| R3.21 | ✅ Done | `critical` severity when current_quantity ≤ 0 |
+| R3.22 | ✅ Done | Trigger is pure SQL, no HTTP calls, runs in same transaction |
+| R3.23 | ✅ Done | Admin can create `adjustment` transaction with mandatory reason |
+| R3.24 | ✅ Done | Adjustments visible in transaction history with `Adjustment` badge and reason |
+| R3.25 | ✅ Done | Stock overview at `/stock` with all active items, low stock highlighted, pending requisition count |
+| R3.26 | ✅ Done | Transaction history at `/stock/transactions` with type/item/department filters |
 
-### What is NOT yet done from PRD 02
+### What is NOT yet done (carried forward)
 
-Carried forward from Chat 5 (unchanged):
-- **R2.8 — Photo upload to Supabase Storage:** File input captures photo, upload pipeline not wired. Needs storage bucket.
-- **R2.15 — Own reports view on submit page:** Accessible via `/reports`, not on submit page itself. Minor UX.
-- **R2.12 — Admin flag N/A as suspicious:** Flagged badge renders, no explicit "flag this N/A" button. Column ready.
+From PRD 02 (unchanged from Chat 6):
+- **R2.8 — Photo upload to Supabase Storage:** File input captures photo, upload pipeline not wired
+- **R2.15 — Own reports view on submit page:** Accessible via `/reports`, not on submit page itself
+- **R2.12 — Admin flag N/A as suspicious:** Badge renders, no explicit "flag this N/A" button
+
+From PRD 03:
+- **R3.13/R3.17 — Requisition notifications:** The requisition workflow is complete but notifications for admin on new requisition and HOD on rejection are not yet wired — these are Stage 5 (Communication & Intelligence) concerns
 
 ### Schema changes from design.md
 
-None. All tables used exactly as specified in `design.md`.
+None. All tables used exactly as specified in `design.md`. One migration added (00014) to improve the existing trigger function — no table changes.
 
 ### Dependencies added
 
-- `idb` (IndexedDB wrapper) — used by the offline layer
+None. No new npm packages required for Stage 4.
 
 ---
 
-## Vercel setup instructions
+## Vercel setup — complete
 
-Joshua needs to:
-
-1. **Create a Vercel project** at vercel.com linked to the `the-business-developers` GitHub repo
-2. **Set Root Directory** to `ziwa_ranch/projects/bms/4_development/app/` in Vercel project settings
-3. **Set Production Branch** to `main`
-4. **Add environment variables** for each environment (Production, Preview, Development):
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-5. **Assign custom domains** (optional):
-   - `main` → production domain
-   - `ziwa` → staging domain (can use Vercel's branch alias)
-
-The `ziwa` branch exists locally and needs to be pushed: `git push -u origin ziwa`
+- **Project:** `bms` on `thebusinessdevelopers-projects` team
+- **GitHub connected:** Auto-deploys on push to `dev`, `ziwa`, `main`
+- **Root directory:** `ziwa_ranch/projects/bms/4_development/app/` (set in Vercel project settings)
+- **Env vars:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` — all set for Development, Preview, Production
+- **`.vercelignore`** at repo root excludes everything except the BMS app path
+- **CLI deploys:** Run `vercel deploy --prod` from repo root
+- **Git deploys:** Just `git push` to the relevant branch
 
 ---
 
-## Your phase — Development Stage 4: Stock
+## Your phase — Development Stage 5: Communication & Intelligence
 
 ### What to build
 
 | Step | What | PRD |
 |------|------|-----|
-| 15 | Stock items library | PRD 03 |
-| 16 | Inbound stock (purchase orders) | PRD 03 |
-| 17 | Requisitions (create, approve, fulfil) | PRD 03 |
-| 18 | Automatic quantity updates (trigger) | PRD 03 |
-| 19 | Stock threshold alerts (trigger → intelligence_flags) | PRD 03 |
+| 20 | Threads and messages | PRD 04 |
+| 21 | Mentions and notifications | PRD 04 |
+| 22 | Intelligence flags display | PRD 04 |
+| 23 | Morning brief Edge Function (scheduled) | PRD 04 |
+| 24 | Morning brief display on dashboard | PRD 04 |
 
 ### Key reference
 
-- `3_architecture/design.md` — search for "Stock Management" for the schema
-- `3_architecture/prd/03_stock_management.md` — full requirements
+- `3_architecture/design.md` — search for "Company Communication" and "Intelligence Layer" for the schema
+- `3_architecture/prd/04_communication_intelligence.md` — full requirements
 - `3_architecture/build_rules.md` — build standards
 
 ### Priority notes
 
-1. The `stock_items`, `stock_transactions`, `requisitions`, and `purchase_orders` tables already exist in the database from Stage 1 migrations.
-2. The stock quantity trigger (`AFTER INSERT ON stock_transactions` → update `current_quantity`) needs to be created as a database migration.
-3. Threshold alerts should create `intelligence_flags` entries when stock drops below `minimum_quantity`.
-4. All stock write operations accessible to non-admin roles must go through the offline-capable path (IndexedDB → sync queue). Admin-only operations (e.g., item management) may require connectivity.
-5. The `inventory_grid` field in reports already loads from `stock_items` — ensure the stock module's item CRUD keeps the cached data consistent.
+1. The `threads`, `messages`, `notifications`, `intelligence_briefs`, and `intelligence_flags` tables already exist in the database from Stage 1 migrations.
+2. `intelligence_flags` are already being created by stock triggers (low stock, discrepancy) — the display layer needs to show these.
+3. The morning brief Edge Function needs to be created as a Supabase Edge Function (`supabase/functions/generate-morning-brief/`).
+4. Notifications should wire into: requisition creation (notify admins), requisition approval/rejection (notify HOD), stock alerts, and mentions in threads.
+5. The communication module (`/communication`) nav link already exists in `app-shell.tsx` but has no page.
+6. The dashboard already shows an "Open Flags" count — the intelligence display should expand on this.
 
-### Build sequence for Stage 4
+### Build sequence for Stage 5
 
-1. Stock items list/detail pages (view, create, edit, archive)
-2. Purchase orders (inbound stock recording)
-3. Requisitions (create by HOD, approve/reject by admin, fulfil by stock manager)
-4. Database trigger for automatic quantity updates on `stock_transactions`
-5. Threshold alert trigger → `intelligence_flags`
-6. Stock dashboard with low-stock warnings
+1. Threads list and detail pages (create, view, messages)
+2. Message composition with @mentions
+3. Notifications system (in-app notifications, read/unread)
+4. Intelligence flags page (list, acknowledge, resolve)
+5. Morning brief Edge Function
+6. Morning brief display on dashboard
 
-**Confirm with Joshua before proceeding past Stage 4.**
+**Confirm with Joshua before proceeding past Stage 5.**
 
 ---
 
@@ -187,8 +217,8 @@ When your development stage is complete, write a new `next_chat_handover.md` rep
 - Note any schema changes made during build (beyond what design.md specifies)
 - Specify exactly what context the next development AI should load
 - Carry forward the standing one-phase-per-chat rule
-- Carry forward the Vercel setup instructions if not yet completed
+- Carry forward the Vercel setup section
 
 ---
 
-*Handover written: 1 April 2026. Chat 6 complete.*
+*Handover written: 1 April 2026. Chat 7 complete.*
