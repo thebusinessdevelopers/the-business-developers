@@ -1,0 +1,30 @@
+-- FK and common query indexes
+
+CREATE INDEX idx_users_org ON users(org_id);
+CREATE INDEX idx_users_department ON users(department_id);
+CREATE INDEX idx_departments_org ON departments(org_id);
+CREATE INDEX idx_reports_org ON reports(org_id);
+CREATE INDEX idx_reports_department ON reports(department_id);
+CREATE INDEX idx_reports_date ON reports(org_id, report_date);
+CREATE INDEX idx_report_na_report ON report_section_na(report_id);
+CREATE INDEX idx_report_reviews_report ON report_reviews(report_id);
+CREATE INDEX idx_stock_items_org ON stock_items(org_id);
+CREATE INDEX idx_stock_txn_org ON stock_transactions(org_id);
+CREATE INDEX idx_stock_txn_item ON stock_transactions(item_id);
+CREATE INDEX idx_requisitions_org ON requisitions(org_id);
+CREATE INDEX idx_requisitions_department ON requisitions(department_id);
+CREATE INDEX idx_purchase_orders_org ON purchase_orders(org_id);
+CREATE INDEX idx_threads_org ON threads(org_id);
+CREATE INDEX idx_messages_thread ON messages(thread_id);
+CREATE INDEX idx_messages_org ON messages(org_id);
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX idx_notifications_org ON notifications(org_id);
+CREATE INDEX idx_briefs_org_date ON intelligence_briefs(org_id, brief_date);
+CREATE INDEX idx_flags_org ON intelligence_flags(org_id);
+CREATE INDEX idx_flags_status ON intelligence_flags(org_id, status);
+CREATE INDEX idx_invoices_org ON invoices(org_id);
+CREATE INDEX idx_payments_org ON payments(org_id);
+CREATE INDEX idx_payments_invoice ON payments(invoice_id);
+CREATE INDEX idx_webhook_events_org ON webhook_events(org_id);
+CREATE INDEX idx_sync_queue_user ON sync_queue(user_id);
+CREATE INDEX idx_sync_queue_status ON sync_queue(user_id, status);
