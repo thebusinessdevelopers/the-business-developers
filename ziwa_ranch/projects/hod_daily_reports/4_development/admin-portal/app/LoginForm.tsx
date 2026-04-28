@@ -10,7 +10,7 @@ const ADMIN_ACCOUNTS = [
   { username: 'admin.chairman', label: 'Chairman', title: 'Chairman' },
   { username: 'admin.isaac', label: 'Isaac', title: 'Head Office Manager' },
   { username: 'admin.wycliffe', label: 'Wycliffe', title: 'Staff Manager' },
-  { username: 'admin.joshua', label: 'Joshua', title: 'Project Admin' },
+  { username: 'admin.royfamily', label: 'Roy Family', title: 'View-only Family Access' },
 ]
 
 export function LoginForm() {

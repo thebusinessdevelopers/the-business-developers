@@ -1,4 +1,5 @@
 import { DepartmentFormConfig } from '@/types'
+import { isSectionMarkedNA } from '@hod/shared/lib/na-markers'
 
 interface ValidateOptions {
   config: DepartmentFormConfig
@@ -15,6 +16,9 @@ export function validateForm(opts: ValidateOptions): string | null {
   if (!effectiveEditMode && !reportDate) return 'Please select a report date.'
 
   for (const section of config.sections) {
+    if (isSectionMarkedNA(section, values)) {
+      continue
+    }
     for (const field of section.fields) {
       if (field.required) {
         const val = values[field.name]

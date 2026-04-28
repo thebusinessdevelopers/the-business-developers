@@ -2,13 +2,13 @@
 
 > **Purpose:** Everything you need to continue building HOD Daily Reports. Load this file, follow the context loading instructions, then continue from where we left off.
 >
-> **Updated:** 8 April 2026 (v2.6 promoted to production)
-> **Current version:** v2.6 — **live on production** (8 Apr 2026). All five refinement phases shipped. See [`versions/v2.6/snapshot.md`](../versions/v2.6/snapshot.md).
-> **Base version:** v2.5 (superseded)
+> **Updated:** 12 April 2026 (v2.8 closed — dev previews live, agent validation passed, awaiting Joshua's sign-off)
+> **Current version:** v2.8 — CLOSED. All three sub-cycles complete (v2.8.1 development, v2.8.2 first refinement, v2.8.3 second refinement). Dev previews are live and healthy. Migration 030 applied. Awaiting Joshua's final live validation before promoting to production.
+> **Production version:** v2.6 (live since 8 Apr 2026 — promote v2.8 after Joshua's sign-off)
 > **HOD portal:** https://hoddailyreports.netlify.app (production — v2.6)
 > **Admin portal:** https://hod-admin-portal.netlify.app (production — v2.6)
-> **HOD dev preview:** https://dev--hoddailyreports.netlify.app (v2.6)
-> **Admin dev preview:** https://dev--hod-admin-portal.netlify.app (v2.6)
+> **HOD dev preview:** https://dev--hoddailyreports.netlify.app (v2.8 — live and validated)
+> **Admin dev preview:** https://dev--hod-admin-portal.netlify.app (v2.8 — live and validated)
 
 ---
 
@@ -18,31 +18,17 @@
 
 1. This file (you're reading it)
 2. `3_architecture/build_rules.md` — standards and principles (still apply)
-3. `versions/v2.0/snapshot.md` — what v2.0 delivered (production)
-4. `versions/v2.1/snapshot.md` — what v2.1 delivered
-5. `versions/v2.2/snapshot.md` — what v2.2 delivered
-6. `versions/v2.3/snapshot.md` — what v2.3 delivered (production)
-7. `versions/v2.4/snapshot.md` — what v2.4 delivered (dev preview)
-8. `versions/v2.5/plan.md` — full v2.5 plan (13 phases)
-9. `versions/v2.5/phase1_snapshot.md` — what v2.5 Phase 1 delivered
-10. `versions/v2.5/phase2_snapshot.md` — what v2.5 Phase 2 delivered
-11. `versions/v2.5/phase3_snapshot.md` — what v2.5 Phase 3 delivered
-12. `versions/v2.5/phase4_snapshot.md` — what v2.5 Phase 4 delivered
-13. `versions/v2.5/phase5_snapshot.md` — what v2.5 Phase 5 delivered
-14. `versions/v2.5/phase6_snapshot.md` — what v2.5 Phase 6 delivered
-15. `versions/v2.5/phase7_snapshot.md` — what v2.5 Phase 7 delivered
-16. `versions/v2.5/phase8_snapshot.md` — what v2.5 Phase 8 delivered
-17. `versions/v2.5/phase9_snapshot.md` — what v2.5 Phase 9 delivered
-18. `versions/v2.5/phase10_snapshot.md` — what v2.5 Phase 10 delivered
-19. `versions/v2.5/phase11_snapshot.md` — what v2.5 Phase 11 delivered
-20. `versions/v2.5/phase12_snapshot.md` — what v2.5 Phase 12 delivered
-21. `versions/v2.5/phase13_snapshot.md` — what v2.5 Phase 13 delivered (final validation)
-22. `versions/v2.5/release_snapshot.md` — v2.5 release record (AI reliability fixes, production deployment)
-23. `versions/v2.6/snapshot.md` — current v2.6 working snapshot
-24. `versions/v2.6/bug_register.md` — v2.6 bug lifecycle tracker
-25. `versions/v2.6/fix_verification.md` — evidence log for completed v2.6 fixes
-26. `versions/v2.6/final_validation.md` — **live dev preview validation** (8 Apr 2026): pass/fail notes and refinement backlog
-27. `versions/v2.6/investigations/activity_log_integrity.md` — deep dive on repeated login/logout anomalies
+3. `versions/v2.8/snapshot.md` — **authoritative v2.8 final release record** (what was delivered, policy maps, migration record)
+4. `versions/v2.9/backlog.md` — **v2.9 planned scope**
+
+**For deeper v2.8 context (only if needed):**
+
+5. `versions/v2.8/README.md` — v2.8 folder architecture guide
+6. `versions/v2.8/v2.8.3/plan.md` — v2.8.3 completion plan
+7. `versions/v2.8/v2.8.3/phase_2_refinement_investigation.md` — root causes and fix direction
+8. `versions/v2.8/v2.8.3/phase_2_refinement_validation.md` — validation model
+9. `versions/v2.8/v2.8.3/v2.8.3_live_observations.md` — live browser validation results
+10. `versions/v2.7/snapshot.md` — v2.7 release record
 
 Then read the source files relevant to whichever task you're building.
 
@@ -54,8 +40,8 @@ Ziwa Rhino And Wildlife Ranch has 16 departments. Each head of department (HOD) 
 
 Two Next.js applications share a single Supabase database:
 
-- **HOD Portal** — the reporting tool HODs use daily (login, submit, edit, drafts, photos, messages)
-- **Admin Portal** — dashboard for reviewing reports, compliance, stock, announcements, activity logs, AI analysis, discussion threads
+- **HOD Portal** — the reporting tool HODs use daily (login, submit, edit, drafts, photos, messages, meetings, room bookings)
+- **Admin Portal** — dashboard for reviewing reports, compliance, stock, announcements, activity logs, AI analysis, discussion threads, meeting management, accommodation booking management
 
 ---
 
@@ -65,28 +51,17 @@ Two Next.js applications share a single Supabase database:
 |---|---|
 | **v2.0** | Production release. Custom auth, two-stage hub, server-side submission, connectivity resilience, room grid, documentation. |
 | **v2.1** | Photo attachments, inventory grid, activity log, password self-service, announcements, pre-fill, admin overview enhancements, HF AI integration. |
-| **v2.2** | Instant photo uploads (AI decoupled), OpenRouter integration (Claude Sonnet 4.6), shared workspace package, FormRenderer split, admin edit API, Analysis tab, cleanup pass. |
-| **v2.3** | InventoryGrid remove buttons, individual admin accounts (7 users, session-based auth), comprehensive activity tracking with role-based visibility, Head Office (Reservations) department (16th), draft auto-save on logout, HOD sign-out button, navigation fix. |
-| **v2.4** | Photo picker fix (mobile OS sheet), Google Drive media sync (OAuth, background push, admin sweep, `media/{dept}/{month}` structure), messaging system (@mention picker, threaded discussion, notification polling, global message banner), shared UI components (MentionInput, ThreadView, NotificationBadge). Deployed to dev previews. |
-| **v2.5 P1** | Bug fixes: password_display sync on password change, mandatory field indicators on all field types (repeater/inventory_grid/room_grid/photo/checkbox_group/stepper), array-aware form validation, AI analysis display cutoff fix (maxTokens 1200, structured prompt, scrollable rendering, regenerate button), removed generator_use from Electrical config. |
-| **v2.5 P2** | Form UX: N/A section toggle (allowNA on FormSection, toggle button, validation bypass, read-only display, all-NA guardrail), contextual helpText on key fields across 9 departments, mandatory audit confirmed complete. |
-| **v2.5 P3** | Mobile navigation: Admin hamburger menu (NavMenu component, slide-down panel, auto-close on route change), HOD user avatar dropdown (UserMenu component, initial circle, change password + sign out), responsive audit across both portals (flex-wrap/stack on 10 pages, table scroll, review comment overflow). |
-| **v2.5 P4** | Stock data quality: Fuzzy search utility (`fuzzyMatch`, `toTitleCase`, `similarity`, `findDuplicateGroups`), InventoryGrid fuzzy search + similarity popup + title case on add, harvest normalisation with title case, `hod_stock_flags` table (migration 014), admin scan/merge/resolve endpoints, StockFlags UI on stock page, client-side item cache. |
-| **v2.5 P5** | AI overhaul: Smart daily brief (structured 4-section output, caching in `hod_analysis_cache`, progressive updates, 1500 maxTokens), DailyDigestCard with section parser + 5-min auto-refresh, analysis prompt with PATTERNS section, urgency detection with category-specific guidance. |
-| **v2.5 P6** | Universal mentions: AcknowledgeButton uses MentionInput (lazy-loaded user groups), review-report API processes mentions into `hod_notifications`, report author auto-notified on review. |
-| **v2.5 P7** | Speed: Parallel signed URL generation on admin report detail, `get_dashboard_stats` SQL RPC function (migration 015), admin overview uses single RPC call instead of fetching raw reports (~95% data reduction). |
-| **v2.5 P8** | Performance: Image thumbnail pipeline (Sharp, 300px thumbnails on upload, admin gallery uses thumbs in grid/full on expand), dynamic imports for heavy portal components (InventoryGrid, PhotoUploader, RoomGrid via next/dynamic), notification polling optimisation (lightweight check endpoint, full fetch only on change). |
-| **v2.5 P9** | AI failure recovery: process-media ai_status lifecycle (processing→complete/failed/skipped), ai_error_message tracking, urgency detection error recording in ai_flags, admin failed media endpoint + retry endpoint, FailedMediaPanel on errors page with batch retry. |
-| **v2.5 P10** | Admin report comparison: "Compare with previous" toggle on report detail page, lazy-fetches prior report, field-type-aware diff rendering (numeric deltas with % badges, inventory per-item changes, N/A toggle tracking, text strikethrough). |
-| **v2.5 P11** | Admin intelligence: `extractKeyMetrics` shared utility (numeric extraction from report_data via form config), `GET /api/analysis/trends` endpoint (5-week rolling comparison, AI-powered insight generation, cached as `trend_alert`), TrendInsightsCard on overview (severity-coded insight cards), cross-departmental correlation in analysis/generate (numeric data feeding, CROSS-DEPARTMENT CONNECTIONS section, maxTokens 1500), AnalysisPanel section parser. |
-| **v2.5 P12** | Export system: `/exports` page with three modes (single report, date range, executive summary), `POST /api/exports/generate` (text rendering with form-config-aware field formatting, AI executive summary via OpenRouter), `GET /api/exports/lookup` (report finder), ExportsPanel UI (department multi-select, date pickers, preview, copy to clipboard, print/PDF), Exports link in admin NavMenu. |
-| **v2.5 P13** | Testing and validation: TypeScript zero errors on both portals, zero linter errors, all 13 v2.5 phases feature-complete. |
-| **v2.5 AI fix** | Switched from Claude Sonnet 4.6 to Claude 3.5 Sonnet — 4.6's reasoning parameter consumed the entire token budget producing empty content, and 36-70s response times exceeded Netlify's 26s timeout. Analysis maxTokens reduced to 1200, prompts enforced plain text (no markdown), notes capped at 200 chars, metrics at 40 lines. All AI endpoints now respond within 12-19s. **Note:** 3.5 Sonnet was later retired by OpenRouter; v2.6 iteration switched to Claude Sonnet 4 (3-8s response). |
-| **v2.6** | Reliability-first release: 14 registered bugs fixed (V26-001 through V26-014). Trust boundary guards, offline queue lifecycle, analysis reliability rebuild, submitter edit governance, auth activity dedupe, Roy Family view-only path, wildlife account corrections, IT Job Cards no-entry, `Kyamukama Gate`, internal route protection, N/A marker centralisation, analysis-route stabilisation. DB migration `017` applied. Prod-spec iteration: OpenRouter model update (3.5-sonnet retired → Sonnet 4), compliance tracker accuracy (7-day reporting, today excluded), one-step single report export, executive summary AI fallback, admin stock inline editing with audit trail, batched duplicate scan. **Live browser validation on dev previews completed 8 Apr 2026** (`versions/v2.6/final_validation.md`). **Production refinement (5 phases, all complete 8 Apr 2026):** Phase 1 — DailyDigestCard/TrendInsightsCard labelled skeletons, empty states, error/degraded surfacing. Phase 2 — Room grid human-readable export, generic object labelled lines, ExportsPanel full error surfacing. Phase 3 — Offline queue success UX (reportId passthrough, "View this report" link, green banner flash, failure diagnostics). Phase 4 — ThreadView `useRef`-based double-submit lock. Phase 5 — Build verification (both portals zero TS errors, zero linter errors) and documentation close-out. |
+| **v2.2** | Instant photo uploads, OpenRouter integration (Claude), shared workspace package, FormRenderer split, admin edit API, Analysis tab. |
+| **v2.3** | Individual admin accounts (7 users), activity tracking with role-based visibility, Head Office (16th dept), draft auto-save on logout, HOD sign-out button. |
+| **v2.4** | Photo picker fix, Google Drive media sync, messaging system (@mention, threaded discussion, notification polling, global message banner). |
+| **v2.5** | 13 phases: mandatory field indicators, N/A toggle, mobile nav, stock data quality, AI overhaul (daily brief, caching), universal mentions, dashboard RPC, thumbnails, AI failure recovery, report comparison, trend insights, export system. |
+| **v2.6** | Reliability-first: 14 bugs fixed, migration 017, prod-spec iteration (model update, compliance, exports, stock editing), 5-phase refinement (digest/insights UX, room grid exports, offline queue success UX, thread double-submit guard, build verification). **Production since 8 Apr 2026.** |
+| **v2.7** | Three major features + system improvements. **Phase 0:** Elly account transition. **Phase 1:** Auth hardening (rate limiting, role filter, sliding sessions), forms consolidation, admin pagination (50/page), AI tool-use upgrade, notification batching, stock (Kitchen added, API routes), media (800px variant). **Phase 2:** HOD Form Intelligence — section pagination, active prompts, `visibleIf` conditionals, previous-report comparison, flag-for-management, quality nudge, repeater suggestions. **Phase 3:** HOD Meeting Tool — full meeting records, 8-section form, action items with lifecycle, admin approval, notifications. **Phase 4:** Accommodation Booking Portal Phase 1 — 27-unit catalogue, calendar view, booking CRUD, rate auto-population, daily rooming summary, change requests, CSV export. **Phase 5:** Build verification, documentation. |
+| **v2.8** | *CLOSED — dev previews live, awaiting Joshua's final sign-off before production promotion.* Three sub-cycles: **v2.8.1** (6 build phases — bug fixes, stock quality, meeting tool Phase 2, accommodation Phase 2, reports/forms/auth, performance). **v2.8.2** (5 refinement areas — crash fix, notification system, booking basket redesign, HOD calendar, HOD booking permissions; migrations 028–029). **v2.8.3** (logo fix, lint cleanup, account integrity migration 030, accommodation policy backbone, accommodation interaction model, session lifecycle, live deployment and validation). |
 
 ---
 
-## Current architecture (v2.6 branch / v2.5 production)
+## Current architecture (v2.7)
 
 ### Application structure
 
@@ -111,28 +86,38 @@ The deploy repos (`hod_daily_reports`, `hod_admin_portal`) are standalone mirror
 
 | Platform | Model | Task |
 |---|---|---|
-| **OpenRouter** | `anthropic/claude-sonnet-4` | Daily digest, urgency detection, period analysis, trend detection, export summaries |
+| **OpenRouter** | `anthropic/claude-sonnet-4` | Daily digest, urgency detection (tool-use API), period analysis, trend detection, export summaries |
 | **Hugging Face** | `facebook/detr-resnet-50`, `Salesforce/blip-image-captioning-large` | Object detection, image captioning (background, post-submission) |
 
-OpenRouter client: `packages/shared/lib/openrouter.ts` — accepts configurable `referer`, `title`, and `maxTokens` per call. **Critical constraint:** Netlify serverless functions have a 26-second timeout. All OpenRouter calls must complete within ~20s. Claude Sonnet 4 at 1200 maxTokens responds in 3-8s. **Model history:** Claude 3.5 Sonnet was retired by OpenRouter (404). Claude Sonnet 4.6's `reasoning` parameter consumed the token budget — do not use 4.6 or enable reasoning.
+OpenRouter client: `packages/shared/lib/openrouter.ts`. **Critical constraint:** Netlify serverless functions have a 26-second timeout. All OpenRouter calls must complete within ~20s. Claude Sonnet 4 at 1200 maxTokens responds in 3-8s. **Model history:** Claude 3.5 Sonnet was retired by OpenRouter. Claude Sonnet 4.6's `reasoning` parameter consumed the token budget — do not use.
 
-Fuzzy search: `packages/shared/lib/fuzzy-search.ts` — `fuzzyMatch()`, `toTitleCase()`, `similarity()`, `findSimilarItems()`, `findDuplicateGroups()`. Used by InventoryGrid (client-side) and harvest/scan routes (server-side).
+### Key shared libraries
 
-Metrics extraction: `packages/shared/lib/extract-metrics.ts` — `extractKeyMetrics()`, `formatMetricsForPrompt()`. Pulls numeric values from report_data JSONB using form config. Used by trend detection and cross-departmental correlation endpoints.
+| File | Purpose |
+|---|---|
+| `packages/shared/lib/openrouter.ts` | OpenRouter client |
+| `packages/shared/lib/fuzzy-search.ts` | `fuzzyMatch()`, `toTitleCase()`, `similarity()`, `findDuplicateGroups()` |
+| `packages/shared/lib/extract-metrics.ts` | `extractKeyMetrics()`, `formatMetricsForPrompt()` |
+| `packages/shared/lib/visible-if.ts` | `VisibleIfCondition` type + `shouldShowField()` evaluator |
+| `packages/shared/lib/notification-batch.ts` | `groupNotifications()`, `threadBatchKey()`, `reportBatchKey()`, `meetingBatchKey()` |
+| `packages/shared/lib/na-markers.ts` | Centralised N/A marker utilities |
+| `packages/shared/config/forms.ts` | Canonical `DEPARTMENT_FORMS` for all 16 departments |
+| `packages/shared/config/meetings.ts` | Meeting constants, secretary options, Tuesday date helpers, core attendee lists |
+| `packages/shared/config/accommodation.ts` | Accommodation labels, capability/date-range policy maps, calendar range helpers |
+| `packages/shared/types/index.ts` | All shared types including `Meeting`, `MeetingActionItem`, `AccommodationUnit`, `Booking`, etc. |
+| `packages/shared/components/ThreadView.tsx` | Shared thread viewer with useRef double-submit lock |
 
 ### Key data flows
 
-**Photo upload:** Instant storage upload → HOD sees success → background Drive push to `media/{dept}/{month}` → after report submission, `POST /api/ai/process-media` runs HF models and updates `hod_report_media` with `ai_description` and `ai_tags`.
+**Report submission:** HOD submits → server-side validation → DB insert → stock (if Monday) → harvest items → activity log → background AI (urgency detection via tool-use, media processing).
 
-**Google Drive sync:** OAuth2 refresh token (not service account — they have zero storage quota). Upload on photo submission, catch-up sweep via `GET /api/media/sync-to-drive`. Writes `google_drive_file_id`, `google_drive_url`, `google_drive_synced_at` to `hod_report_media`.
+**Photo upload:** Instant storage upload → HOD sees success → background Drive push to `media/{dept}/{month}` → after report submission, HF models run and update `hod_report_media`.
 
-**Messaging:** Thread messages stored in `hod_report_threads`. Mention processing creates `hod_notifications` rows. HOD portal polls every 60s, admin every 30s. Global @everyone/@admins messages shown on login page (public endpoint, 24h auto-expire).
+**Meeting flow:** Secretary submits meeting record → admin reviews → admin approves → all HODs notified → action items assigned → HODs complete items → admin verifies.
 
-**Urgency detection:** After submission, `detectUrgency()` calls OpenRouter to classify report text. Result written to `ai_flags` JSONB column on `hod_daily_reports`.
+**Accommodation flow:** Admin creates/edits bookings → calendar view updates → daily summary generated → HOD Rooms tab follows the shared policy window → Head Office can create direct bookings → HQ Reception / Housekeeping / Main Gate can create approval-gated bookings and submit change requests → other departments remain read-only until the Phase 4 interaction pass → admin reviews.
 
-**Daily digest:** Admin portal `GET /api/daily-digest` fetches today's reports, sends department notes to Claude for executive summary.
-
-**Analysis:** Admin `/analysis` page → select period (day/week/month) → `POST /api/analysis/generate` checks if period is complete, checks `hod_analysis_cache`, generates via Claude if not cached.
+**Messaging:** Thread messages in `hod_report_threads`. Mention processing creates `hod_notifications`. HOD portal polls every 60s, admin every 30s. `since` param used in polling for efficiency.
 
 ---
 
@@ -143,7 +128,8 @@ Metrics extraction: `packages/shared/lib/extract-metrics.ts` — `extractKeyMetr
 | Supabase project | `inidzwfjnkyinxhvbrdt` (EU West Frankfurt) |
 | Supabase URL | `https://inidzwfjnkyinxhvbrdt.supabase.co` |
 | DB timezone | `Africa/Kampala` |
-| DB tables | `hod_departments` (16), `hod_daily_reports`, `hod_verified_stock`, `hod_item_library`, `hod_drafts`, `hod_error_log`, `hod_users`, `hod_sessions`, `hod_activity_log`, `hod_report_media`, `hod_announcements`, `hod_analysis_cache`, `hod_report_threads`, `hod_notifications`, `hod_stock_flags` |
+| DB tables (v2.6 production) | `hod_departments`, `hod_daily_reports`, `hod_verified_stock`, `hod_item_library`, `hod_drafts`, `hod_error_log`, `hod_users`, `hod_sessions`, `hod_activity_log`, `hod_report_media`, `hod_announcements`, `hod_analysis_cache`, `hod_report_threads`, `hod_notifications`, `hod_stock_flags` |
+| DB tables (v2.7 new) | `hod_meetings`, `hod_meeting_action_items`, `accommodation_units`, `accommodation_rates`, `bookings`, `booking_rooms`, `booking_change_requests` |
 | Frontend (HOD) | Next.js 16, Tailwind v4, React 19 — `4_development/portal/` |
 | Frontend (Admin) | Next.js 16, Tailwind v4, React 19 — `4_development/admin-portal/` |
 | Shared package | `@hod/shared` at `4_development/packages/shared/` |
@@ -154,7 +140,7 @@ Metrics extraction: `packages/shared/lib/extract-metrics.ts` — `extractKeyMetr
 | Repository (Admin deploy) | https://github.com/thebusinessdevelopers/hod_admin_portal |
 | Branching | `main` = production, `dev` = development (all three repos) |
 
-### Database migrations (applied / prepared)
+### Database migrations
 
 | File | Summary |
 |---|---|
@@ -164,18 +150,30 @@ Metrics extraction: `packages/shared/lib/extract-metrics.ts` — `extractKeyMetr
 | `004_v16_schema.sql` | Edit history, unique report constraint, acknowledgements, verified stock status |
 | `005_v18_schema.sql` | Anon select on reports, `hod_error_log`, `hod_drafts`, review comments |
 | `006_v2_schema.sql` | Auth tables (`hod_users`, `hod_sessions`, `hod_activity_log`), user seeding |
-| `007_v2_substitute_users_and_password_display.sql` | New substitute accounts, `password_display` column |
-| `008_report_media.sql` | `hod_report_media` table for photo metadata |
+| `007_v2_substitute_users_and_password_display.sql` | Substitute accounts, `password_display` column |
+| `008_report_media.sql` | `hod_report_media` table |
 | `009_item_library_defaults.sql` | `default_unit` and `default_cost_per_unit` on `hod_item_library` |
 | `010_announcements.sql` | `hod_announcements` table |
 | `011_ai_flags.sql` | `ai_flags jsonb` column on `hod_daily_reports` |
-| `hod_analysis_cache` (DDL) | Analysis cache table (created via `execute_sql`, no migration file) |
-| `012_v2_3_schema.sql` | Admin columns (`admin_tier`, `admin_title`), 6 admin accounts, Head Office department + 3 user accounts |
-| `013_v2_4_schema.sql` | Performance indexes, `ai_status` on media, Google Drive columns, `hod_report_threads`, `hod_notifications` |
-| `014_v2_5_stock_flags.sql` | `hod_stock_flags` table for stock data quality management |
-| `015_v2_5_dashboard_stats_rpc.sql` | `get_dashboard_stats` SQL function for admin overview aggregation |
-| `016_v2_5_thumbnails_and_ai_recovery.sql` | `thumbnail_path` and `ai_error_message` columns on `hod_report_media`, index on `ai_status` for failed/pending lookups |
-| `017_v2_6_account_access_updates.sql` | Applied 7 April 2026: added `admin.royfamily`, retired `admin.joshua` to `legacy.admin.joshua`, renamed `wildlife.wycliff` to `wildlife.wycliffe`, inserted `wildlife.samuel` |
+| `012_v2_3_schema.sql` | Admin columns, 6 admin accounts, Head Office department |
+| `013_v2_4_schema.sql` | Performance indexes, `ai_status`, Drive columns, `hod_report_threads`, `hod_notifications` |
+| `014_v2_5_stock_flags.sql` | `hod_stock_flags` table |
+| `015_v2_5_dashboard_stats_rpc.sql` | `get_dashboard_stats` SQL function |
+| `016_v2_5_thumbnails_and_ai_recovery.sql` | `thumbnail_path`, `ai_error_message` columns |
+| `017_v2_6_account_access_updates.sql` | `admin.royfamily`, `wildlife.samuel`, account renames (applied 7 Apr 2026) |
+| `018_elly_transition.sql` | **v2.7** — `is_active` column, Elly disabled, Anita promoted |
+| `019_analysis_cache.sql` | **v2.7** — `hod_analysis_cache` formalised |
+| `020_notification_batching.sql` | **v2.7** — `batch_key` column + index on `hod_notifications` |
+| `021_media_medium_path.sql` | **v2.7** — `medium_path` on `hod_report_media` |
+| `022_meetings.sql` | **v2.7** — `hod_meetings`, `hod_meeting_action_items` |
+| `023_accommodation.sql` | **v2.7** — `accommodation_units` (27 seeded), `accommodation_rates` (2026+2027), `bookings`, `booking_rooms`, `booking_change_requests` |
+| `024_notification_types.sql` | **v2.8** — Widen `hod_notifications.type` CHECK for meeting/action item notification types + `secretary_invited` |
+| `025_room_pax_config.sql` | **v2.8** — `pax_config` JSONB on `accommodation_units` (bed configs, max pax, cot eligibility for all 27 units) |
+| `026_structured_change_requests.sql` | **v2.8** — `requested_changes` JSONB on `booking_change_requests` |
+| `027_booking_activity_log.sql` | **v2.8** — `booking_activity_log` table for booking lifecycle tracking |
+| `028_room_basket_config.sql` | **v2.8 refinement** — `room_config` JSONB on `booking_rooms` for per-room basket data |
+| `029_hod_booking_permissions.sql` | **v2.8 refinement** — `hod_pending` booking status + booking approval notification types |
+| `030_phase2_reset_first_password_support.sql` | **v2.8 Phase 2** — retire `password_display` support data and restore Martine's no-auto-logout exception |
 
 ### Environment variables (set on both Netlify sites)
 
@@ -184,15 +182,14 @@ Metrics extraction: `packages/shared/lib/extract-metrics.ts` — `extractKeyMetr
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-side key for API routes |
-| `ADMIN_PASSWORD` | **Deprecated in v2.3.** Admin portal now uses per-user accounts. |
 | `HF_TOKEN` | Hugging Face Inference API token (Read scope) |
 | `OPENROUTER_API_KEY` | OpenRouter API key for `anthropic/claude-sonnet-4` |
 | `GOOGLE_DRIVE_CLIENT_ID` | OAuth client ID for Drive uploads |
 | `GOOGLE_DRIVE_CLIENT_SECRET` | OAuth client secret |
 | `GOOGLE_DRIVE_REFRESH_TOKEN` | OAuth refresh token (from `scripts/get-drive-token.js`) |
 | `GOOGLE_DRIVE_FOLDER_ID` | Root Google Drive folder ID |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account key (used for non-upload Drive operations; not needed for file uploads) |
-| `INTERNAL_ROUTE_TOKEN` / `INTERNAL_JOB_TOKEN` | Internal token for protected service-role routes such as `process-media` and `harvest-items` |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account key (non-upload Drive operations) |
+| `INTERNAL_ROUTE_TOKEN` / `INTERNAL_JOB_TOKEN` | Internal token for protected service-role routes |
 
 ---
 
@@ -200,7 +197,7 @@ Metrics extraction: `packages/shared/lib/extract-metrics.ts` — `extractKeyMetr
 
 ### HOD Portal (`4_development/portal/`)
 
-The HOD-facing reporting tool. Login picker → Department hub → Report form.
+The HOD-facing reporting tool. Login picker → Department hub → Report form / Messages / Meetings / Rooms.
 
 **Routes:**
 
@@ -208,7 +205,7 @@ The HOD-facing reporting tool. Login picker → Department hub → Report form.
 |---|---|
 | `/login` | Multi-step login picker |
 | `/` | Redirect: authenticated → `/report/[slug]`, else → `/login` |
-| `/report/[slug]` | Department hub: Reports tab (date buttons, recent reports) + Messages tab (notification inbox) |
+| `/report/[slug]` | Department hub: Reports tab, Messages tab, Meetings tab, Rooms tab |
 | `/report/[slug]/new?date=YYYY-MM-DD` | New report form with locked date |
 | `/report/[slug]/view/[id]` | Read-only report viewer with Discussion section |
 | `/report/[slug]/edit/[id]` | Edit a submitted report (within edit window) |
@@ -218,48 +215,53 @@ The HOD-facing reporting tool. Login picker → Department hub → Report form.
 
 | Route | Purpose |
 |---|---|
-| `POST /api/auth/login` | Username/password login |
+| `POST /api/auth/login` | Username/password login (rate limited: 3 attempts / 15-min lockout) |
 | `POST /api/auth/guest-login` | Guest login (no password) |
 | `POST /api/auth/logout` | Session destruction |
 | `GET /api/auth/session` | Session health check |
-| `POST /api/submit-report` | Server-side submission (auth, insert, stock, harvest, activity log, background AI) |
+| `POST /api/submit-report` | Server-side submission |
 | `POST /api/upload-media` | Instant photo upload + background Drive push |
-| `POST /api/ai/process-media` | Background AI processing for a single photo |
+| `POST /api/ai/process-media` | Background AI processing |
 | `POST /api/harvest-items` | Upsert repeater items into library |
 | `GET /api/item-suggestions/[slug]` | Autocomplete suggestions |
 | `GET /api/inventory-items/[slug]` | Inventory items and previous quantities |
 | `POST /api/change-password` | HOD password change |
 | `POST /api/log-error` | Client error logging |
 | `GET /api/stock-projection/[slug]` | Stock projection calculation |
-| `GET /api/threads/[reportId]` | Fetch thread messages (access-controlled) |
-| `POST /api/threads/[reportId]` | Post message to thread, triggers mention processing |
-| `GET /api/mention-users` | User list grouped by department for @mention picker |
-| `GET /api/notifications` | Current user's notifications with unread count |
+| `GET /api/threads/[reportId]` | Fetch thread messages |
+| `POST /api/threads/[reportId]` | Post message to thread |
+| `GET /api/mention-users` | User list for @mention picker |
+| `GET /api/notifications` | Notifications with unread count |
+| `GET /api/notifications/check` | Lightweight notification check (with `since`) |
 | `POST /api/notifications/read` | Mark notification(s) as read |
-| `GET /api/global-messages` | Public — @everyone/@admins messages for login page |
+| `GET /api/global-messages` | Public — login page messages |
+| `GET /api/repeater-suggestions` | **v2.7** — Historical repeater suggestions (last 30 days) |
+| `GET /api/meetings` | **v2.7** — Approved meetings list |
+| `GET /api/meetings/[id]` | **v2.7** — Meeting detail |
+| `POST /api/meetings/action-items/complete` | **v2.7** — HOD action item completion |
+| `GET /api/accommodation` | **v2.7** — HOD read-only bookings (today + 7 days) |
+| `POST /api/accommodation/change-requests` | **v2.7** — Submit booking change request |
+| `GET /api/meetings/delegated` | **v2.8** — Pending secretary delegations + form data |
+| `PUT /api/meetings/delegated/[id]` | **v2.8** — Secretary submits completed meeting |
 
-**Key files:**
+**Key files (v2.7 additions in bold):**
 
 | File | Purpose |
 |---|---|
-| `lib/auth.ts` | Auth library: hash, verify, sessions, activity log, getCurrentUser |
-| `lib/with-auth.ts` | `withAuth()` wrapper for API routes — eliminates auth boilerplate |
-| `config/login-users.ts` | Login picker roster: 16 departments with slugs and user lists |
-| `config/forms.ts` | All 16 department form configs |
-| `components/FormRenderer.tsx` | Config-driven form engine (orchestrator — delegates to form/ modules) |
-| `components/form/FieldRenderer.tsx` | Field type switching (~210 lines extracted from FormRenderer) |
-| `components/form/FormValidation.ts` | Pure validation function |
-| `components/PhotoUploader.tsx` | Photo selection, description, category, upload UI |
+| `lib/auth.ts` | Auth library (now with rate limiting + `is_active` check) |
+| `lib/with-auth.ts` | `withAuth()` wrapper (now with sliding session) |
+| `config/login-users.ts` | Login picker roster (Elly removed) |
+| `config/forms.ts` | Re-exports from `@hod/shared/config/forms.ts` with photo injection |
+| `components/FormRenderer.tsx` | Config-driven form engine (now with section pagination + `visibleIf`) |
+| `components/form/FieldRenderer.tsx` | Field type switching (now with previous-report comparison, quality nudge) |
+| **`components/form/SectionProgress.tsx`** | **Sticky section progress bar for paged forms** |
+| **`app/report/[slug]/MeetingsTab.tsx`** | **Meetings list + detail viewer + action item completion + secretary delegation** |
+| **`app/report/[slug]/SecretaryMeetingForm.tsx`** | **v2.8 — Full meeting form for secretary delegation** |
+| **`app/report/[slug]/RoomsTab.tsx`** | **Read-only accommodation view + change request submission** |
 | `hooks/useDraftManager.ts` | Draft load/save/clear with dual-write |
-| `hooks/useSessionTimer.ts` | Idle/daily/poll logout with `hod:session-expiring` event. Tracks scroll as activity. |
+| `hooks/useSessionTimer.ts` | Idle/daily/poll logout with sliding session |
 | `hooks/useSubmissionQueue.ts` | Submission queue with auto-retry |
-| `hooks/useNotifications.ts` | Notification polling (60s), unread count, mark-read helpers |
-| `app/report/[slug]/MessagesTab.tsx` | Notification inbox grouped by report, inline thread drill-down |
-| `app/report/[slug]/ReportThread.tsx` | Reusable thread viewer — fetches messages, user groups, handles send |
-| `app/login/GlobalMessageBanner.tsx` | Dismissible @everyone/@admins messages on login page |
-| `app/UserMenu.tsx` | User avatar dropdown with change password and sign out (replaces visible Account link + LogoutButton in header) |
-| `app/LogoutButton.tsx` | Sign-out button. Fires `hod:session-expiring` before calling logout API. |
-| `middleware.ts` | Route protection |
+| `hooks/useNotifications.ts` | Notification polling (60s, with `since` param) |
 
 ### Admin Portal (`4_development/admin-portal/`)
 
@@ -267,23 +269,26 @@ The HOD-facing reporting tool. Login picker → Department hub → Report form.
 
 | Route | Purpose |
 |---|---|
-| `/` | Overview: KPI cards, submissions, rate bars, daily digest, analysis link |
-| `/reports` | Filterable reports table with review dots, unread discussion dots, CSV export, batch review |
-| `/reports/[id]` | Report detail with signed-URL photo gallery, "View in Drive" links, Discussion section |
-| `/reports/[id]/edit` | Admin edit form (goes through server-side API) |
-| `/stock` | Stock reconciliation |
-| `/compliance` | Per-department compliance bars, WhatsApp message |
+| `/` | Overview: KPI cards, submissions, rate bars, daily digest, trend insights |
+| `/reports` | Filterable reports table (50/page server-side pagination) with review dots |
+| `/reports/[id]` | Report detail with photo gallery, Discussion section |
+| `/reports/[id]/edit` | Admin edit form |
+| `/stock` | Stock reconciliation (F&B, Store, Kitchen) |
+| `/compliance` | Per-department compliance bars (drillable links) |
 | `/errors` | Error log |
-| `/activity` | Activity log with filter dropdown |
+| `/activity` | Activity log with filter dropdown (preserves tab param) |
 | `/announcements` | Announcement management |
 | `/analysis` | AI analysis with Daily/Weekly/Monthly tabs |
 | `/users` | HOD user list with password reset |
+| `/exports` | Export system: single, range, executive summary |
+| **`/meetings`** | **v2.7** — Meeting management: submit, approve, action items |
+| **`/accommodation`** | **v2.7** — Accommodation: calendar, bookings, summary, rooms, change requests |
 
-**API routes:**
+**API routes (v2.7 additions in bold):**
 
 | Route | Purpose |
 |---|---|
-| `POST /api/edit-report` | Admin edit with diff, activity log, harvest trigger |
+| `POST /api/edit-report` | Admin edit with diff + audit trail |
 | `POST /api/analysis/generate` | Period-locked AI analysis with caching |
 | `GET /api/daily-digest` | Claude-powered executive summary |
 | `POST /api/review-report` | Mark reviewed |
@@ -295,43 +300,60 @@ The HOD-facing reporting tool. Login picker → Department hub → Report form.
 | `POST /api/announcements` | Create announcement |
 | `DELETE /api/announcements` | Deactivate announcement |
 | `POST /api/reset-password` | Reset user password |
-| `GET /api/threads/[reportId]` | Fetch thread messages (admin sees all) |
-| `POST /api/threads/[reportId]` | Admin post to thread (`is_admin_note = true`) |
-| `GET /api/mention-users` | User list for @mention picker |
-| `GET /api/notifications` | Admin notifications with unread count |
-| `POST /api/notifications/read` | Mark admin notifications as read |
-| `GET /api/media/sync-to-drive` | Drive catch-up sweep for unsynced media |
-| `POST /api/stock/scan-duplicates` | Scan item library for duplicate groups, create flags |
-| `POST /api/stock/merge-items` | Merge duplicate items into canonical name, resolve flag |
-| `POST /api/stock/resolve-flag` | Mark a stock flag as resolved/ignored/escalated |
-| `POST /api/stock/edit-entry` | Admin inline edit of stock items/quantities with audit trail |
-| `GET /api/analysis/trends` | AI trend detection with 5-week rolling comparison |
-| `POST /api/exports/generate` | Export generation (single, range, executive summary) |
-| `GET /api/exports/lookup` | Find report ID by department + date |
+| `GET/POST /api/threads/[reportId]` | Thread messages |
+| `GET /api/mention-users` | User list for @mention |
+| `GET /api/notifications` | Admin notifications |
+| `GET /api/notifications/check` | Lightweight check (with `since`) |
+| `POST /api/notifications/read` | Mark read |
+| `GET /api/media/sync-to-drive` | Drive catch-up sweep |
+| `POST /api/stock/scan-duplicates` | Scan for duplicate items |
+| `POST /api/stock/merge-items` | Merge duplicates |
+| `POST /api/stock/resolve-flag` | Resolve stock flag |
+| `POST /api/stock/edit-entry` | Inline stock edit with audit |
+| `GET /api/analysis/trends` | AI trend detection |
+| `POST /api/exports/generate` | Export generation |
+| `GET /api/exports/lookup` | Find report by dept+date |
+| **`POST /api/stock/update-status`** | **Stock status update (replaces direct Supabase)** |
+| **`GET/POST /api/meetings`** | **Meeting list + create** |
+| **`GET /api/meetings/[id]`** | **Meeting detail** |
+| **`PUT /api/meetings/[id]`** | **v2.8 — Edit meeting + upsert action items** |
+| **`DELETE /api/meetings/[id]`** | **v2.8 — Delete meeting + cascade action items** |
+| **`POST /api/meetings/approve`** | **Approve meeting** |
+| **`POST /api/meetings/action-items`** | **Action item management** |
+| **`GET /api/meetings/outstanding-items`** | **Outstanding items from prior meeting** |
+| **`GET/POST /api/accommodation/bookings`** | **Booking list + create** |
+| **`GET/PUT/DELETE /api/accommodation/bookings/[id]`** | **Booking CRUD** |
+| **`GET/PUT /api/accommodation/units`** | **Unit list + status update** |
+| **`GET /api/accommodation/rates`** | **Rate lookup** |
+| **`GET /api/accommodation/daily-summary`** | **Daily rooming summary** |
+| **`GET/POST /api/accommodation/change-requests`** | **Change request queue + review** |
+| **`GET /api/accommodation/export`** | **CSV export** |
 
-**Key files:**
+**Key files (v2.7 additions in bold):**
 
 | File | Purpose |
 |---|---|
-| `lib/admin-auth.ts` | Admin auth library |
-| `lib/with-admin-auth.ts` | `withAdminAuth()` wrapper for admin API routes |
-| `hooks/useAdminNotifications.ts` | Notification polling (30s), unread count, mark-read helpers |
-| `app/NavMenu.tsx` | Responsive nav: hamburger menu on mobile, horizontal links on desktop |
-| `app/AdminNotifications.tsx` | Bell icon with badge and dropdown notification panel in header |
-| `app/reports/[id]/AdminReportThread.tsx` | Discussion thread viewer for report detail page |
-| `components/PhotoGallery.tsx` | Photo grid with "View in Google Drive" links |
-| `app/stock/StockFlags.tsx` | Data Quality section: flag display, scan, merge, dismiss |
-| `app/stock/StockTable.tsx` | Inline-editable stock items table with save/cancel |
-| `components/TrendInsightsCard.tsx` | AI trend insights cards on overview page |
-| `app/exports/ExportsPanel.tsx` | Export system: single, range, executive summary modes |
+| `lib/admin-auth.ts` | Admin auth (now with `accommodation_manage` + `meeting_manage` capabilities) |
+| `lib/with-admin-auth.ts` | `withAdminAuth()` wrapper (now with sliding session) |
+| `app/NavMenu.tsx` | Responsive nav (now with Meetings + Rooms links) |
+| **`app/meetings/MeetingsClient.tsx`** | **Meeting list with filter tabs (All/Pending/Approved)** |
+| **`app/meetings/MeetingForm.tsx`** | **8-section meeting record form** |
+| **`app/meetings/MeetingDetailView.tsx`** | **Meeting detail with approval + action item management + edit/delete** |
+| **`app/meetings/DelegateForm.tsx`** | **v2.8 — Secretary delegation form (meeting basics + secretary picker)** |
+| **`app/accommodation/AccommodationClient.tsx`** | **Accommodation section orchestrator** |
+| **`app/accommodation/CalendarView.tsx`** | **Gantt-style booking calendar** |
+| **`app/accommodation/BookingForm.tsx`** | **Booking create/edit modal with rate auto-population** |
+| **`app/accommodation/DailySummary.tsx`** | **Daily rooming summary with WhatsApp copy** |
+| **`app/accommodation/ChangeRequestQueue.tsx`** | **Change request review queue** |
+| **`app/accommodation/RoomManagement.tsx`** | **Room status management + A-Frame activation** |
 
-**Authentication (v2.6):** Per-user admin accounts backed by `hod_users` (role=admin) and `hod_sessions`. Seven accounts (MD, CEO, Chairman, GM, Isaac, Wycliffe, Roy Family) with two tiers: senior (MD, CEO, Chairman) can see all admin activity; standard (GM, Isaac, Wycliffe, Roy Family) cannot. `admin.royfamily` is deliberately restricted to view-only capability in the admin portal.
+**Authentication (v2.7):** Same 7 admin accounts as v2.6 plus two new capabilities: `accommodation_manage` and `meeting_manage`.
 
 ---
 
 ## HOD user accounts
 
-All accounts use password `ziwa2026`. Usernames follow `department.firstname` pattern.
+Do not assume a shared current password. `ziwa2026` is only the historical seed/default for untouched accounts, and current passwords are not stored in recoverable form. If a user does not know the password, a senior admin should set a temporary one from the `Users` page, then the user should change it from `/account`. Usernames follow `department.firstname` pattern.
 
 | Username | HOD Name | Department | Auto-logout |
 |---|---|---|---|
@@ -344,8 +366,8 @@ All accounts use password `ziwa2026`. Usernames follow `department.firstname` pa
 | `kitchen.sensio` | Sensio | Kitchen | yes |
 | `kitchen.richard` | Richard | Kitchen | yes |
 | `kitchen.safari` | Safari | Kitchen | yes |
-| `housekeeping.elly` | Elly | Housekeeping | yes |
-| `housekeeping.anita` | Anita | Housekeeping | yes |
+| ~~`housekeeping.elly`~~ | ~~Elly~~ | ~~Housekeeping~~ | **disabled (v2.7)** |
+| `housekeeping.anita` | Anita | Housekeeping (Acting Head) | yes |
 | `security.salim` | Salim | Security | yes |
 | `security.elia` | Elia | Security | yes |
 | `store.denis` | Denis | Store | yes |
@@ -369,7 +391,7 @@ All accounts use password `ziwa2026`. Usernames follow `department.firstname` pa
 | `headoffice.julie` | Julie | Head Office | yes |
 | `headoffice.isaac` | Isaac | Head Office | yes |
 
-**Admin accounts (v2.6 app state):**
+**Admin accounts:**
 
 | Username | Display Name | Title | Tier |
 |---|---|---|---|
@@ -396,56 +418,52 @@ All accounts use password `ziwa2026`. Usernames follow `department.firstname` pa
 
 ## Known issues and pending items
 
-1. **npm install required for local dev.** The workspace setup (`packages/shared`) requires running `npm install` from `4_development/` root to set up symlinks before local dev works.
-2. **`hod_analysis_cache` has no migration file.** Table was created via `execute_sql`. If the database is rebuilt, this table needs manual creation.
-3. **Shared config/forms.ts not extracted.** The form configs differ between portal and admin portal (portal has photo/inventory sections, admin has legacy config). Kept separate deliberately.
-4. **Netlify plugin configuration.** The `@netlify/plugin-nextjs` must be registered as a Netlify site-level plugin, not as an npm dependency. Having it as an npm dependency causes 404 on all routes.
-5. **HF Pro upgrade pending.** Hugging Face account is still on free tier. BLIP captioning may fail — the code falls back gracefully to HOD description. Pro subscription needed for reliable vision model access.
-6. **Deploy repo TypeScript strictness.** Netlify's build runs a full `tsc` check that local Turbopack skips. Supabase query builder returns `PromiseLike` (not `Promise`) — `.catch()` must be preceded by `Promise.resolve()`. Supabase join results are typed as arrays — cast through `unknown` before treating as a single object.
-7. **v2.6 is production.** Promoted on 8 April 2026. HOD portal `main` → `658b162`; admin portal `main` → `a803f6d`. Both Netlify production sites are running v2.6. v2.5 is superseded.
-8. **Migration 017 has been applied.** Executed 7 April 2026. All four account operations verified in the database.
-9. **Live validation complete (8 Apr 2026).** Results and refinement backlog are in `versions/v2.6/final_validation.md`. Next step is **production promotion** and/or **v2.6 refinement** (daily brief load experience, human-readable exports for room grids / complex JSON, offline queue post-success messaging and redirect to report view).
-10. **Google Drive uses OAuth, not service account.** Service accounts have zero file storage quota. Drive uploads use an OAuth2 refresh token from a real Google account. If the token expires, re-run `scripts/get-drive-token.js`.
-11. **OpenRouter model history.** Claude 3.5 Sonnet was retired by OpenRouter in early April 2026. Claude Sonnet 4.6 has a reasoning parameter that consumed the token budget — do not use. Current model is Claude Sonnet 4 (3-8s response time, well within Netlify's 26s timeout).
-12. **v2.6 production refinement complete.** All five phases finished 8 April 2026. Full record in [versions/v2.6/v2.6_refinement_plan.md](../versions/v2.6/v2.6_refinement_plan.md) and [versions/v2.6/snapshot.md](../versions/v2.6/snapshot.md).
-
----
-
-## v2.6 phased refinement — links (use in every handover refresh)
-
-| Document | Relative path from this file |
-|----------|------------------------------|
-| **Refinement plan** (phases, checklists, gates) | [`../versions/v2.6/v2.6_refinement_plan.md`](../versions/v2.6/v2.6_refinement_plan.md) |
-| **v2.6 snapshot** (release record — update after each phase) | [`../versions/v2.6/snapshot.md`](../versions/v2.6/snapshot.md) |
-
-**Refinement status:** All five phases complete. **Promoted to production 8 Apr 2026.**
-
-**Rule:** Do not start Phase *N+1* until Phase *N* implementation **and** its documentation gate (snapshot + handover + plan ticks) are done.
+1. **Migrations 018–023 applied (9 Apr 2026).** All six v2.7 migrations executed on production Supabase via MCP. Verified: 25 accommodation units seeded, 98 rates seeded, 4 A-Frames inactive, Elly disabled, 5 new tables created.
+2. **npm install required for local dev.** The workspace setup (`packages/shared`) requires running `npm install` from `4_development/` root.
+3. **Netlify plugin configuration.** The `@netlify/plugin-nextjs` must be registered as a Netlify site-level plugin, not as an npm dependency.
+4. **HF Pro upgrade pending.** Hugging Face free tier may cause BLIP captioning failures. Code falls back gracefully.
+5. **Deploy repo TypeScript strictness.** Netlify's build runs a full `tsc` check that local Turbopack skips. Supabase query builder returns `PromiseLike` — `.catch()` must be preceded by `Promise.resolve()`. Join results typed as arrays — cast through `unknown`.
+6. **Google Drive uses OAuth, not service account.** Service accounts have zero file storage quota. If the token expires, re-run `scripts/get-drive-token.js`.
+7. **OpenRouter model history.** Claude 3.5 Sonnet retired (404). Claude Sonnet 4.6's reasoning parameter consumed token budget — do not use. Current: Claude Sonnet 4.
+8. **A-Frame units inactive.** Four A-Frame accommodation units (Alfajiri, Kilele, Nyota, Upeo) are seeded as inactive. Activate via Room Management when commissioned (late May 2026). Final names to be confirmed by Head Office.
+9. **v2.6 is still production.** Do not promote anything until the new v2.8 completion plan passes all agent gates and Joshua signs off on dev preview.
+10. **v2.7 live validation complete (9 Apr 2026).** 55/57 tests pass. 2 bugs (occupancy count mismatch, change request no-effect) + 6 investigations logged. Full results in `versions/v2.7/validation.md`.
+11. **v2.8 is closed and live on dev previews (12 Apr 2026).** All three sub-cycles delivered. Agent browser validation passed. Migration 030 applied. Awaiting Joshua's final sign-off before production promotion.
+12. **Logo is served from application routes.** Both portals have `app/logo.png/route.ts` backed by `@hod/shared/config/logo.ts` base64 asset — no `public/` PNG dependency.
+13. **v2.9 backlog seeded.** Overview redesign, performance resolution, AI refinement, accommodation Phase 3. See `versions/v2.9/backlog.md`.
+14. **Portal lint is clean.** 0 errors, 3 warnings (acceptable `<img>` in PhotoUploader for blob URLs).
+15. **Admin lint is clean.** 0 errors, 12 warnings (pre-existing, acceptable). ESLint config at `admin-portal/eslint.config.mjs` with `.netlify/**` excluded.
+16. **Password support is reset-first.** `password_display` is retired. Do not look up or display passwords from this column. Support workflow: senior admin sets temporary password from Users page → user changes from `/account`.
+17. **Accommodation policy lives in shared config.** All date-range and capability rules are in `packages/shared/config/accommodation.ts`. Never add per-file accommodation policy logic.
 
 ---
 
 ## Immediate next chat
 
-v2.6 is live on production. Development, validation, all five refinement phases, and production promotion are complete.
+**v2.8 is closed and live.** The only remaining action is Joshua's final human validation.
 
-**Read first:**
+| Item | Status |
+|------|--------|
+| All source passes (v2.8.1/2/3) | **Complete** |
+| Builds — both portals | **Passing** |
+| Lint — both portals | **Clean** (0 errors) |
+| Migration 030 | **Applied** |
+| Dev previews | **Live and agent-validated** |
+| Agent browser validation | **Passed** (`v2.8.3/v2.8.3_live_observations.md`) |
+| Joshua's sign-off | **Pending** |
 
-1. `4_development/next_chat_handover.md`
-2. [`versions/v2.6/snapshot.md`](../versions/v2.6/snapshot.md) — **full v2.6 release record**
-
-**Then choose a path:**
-
-**A — v2.7+ development:** v2.6 is closed. Future work is new-feature territory — see the long-term vision section below for ideas. Start a new version plan when ready.
-
-**B — Production smoke test:** Verify https://hoddailyreports.netlify.app and https://hod-admin-portal.netlify.app are healthy post-deploy.
+**Next actions:**
+1. Joshua validates dev previews using `versions/v2.8/v2.8.3/phase_2_refinement_validation.md`
+2. After sign-off → promote `dev` → `main` (see Production promotion section below)
+3. Start v2.9 planning from `versions/v2.9/backlog.md`
 
 ---
 
 ## Production promotion
 
-v2.6 was promoted to production on 8 April 2026. All five refinement phases were included in the promotion. DB migration `017` was applied on 7 April 2026. Live validation on dev previews completed 8 April 2026 (`versions/v2.6/final_validation.md`). Both deploy repos `main` branches are at the v2.6 refinement commits.
+v2.6 is the current production version (promoted 8 April 2026). Promote v2.8 after Joshua's sign-off.
 
-To promote future changes:
+To promote v2.8:
 
 ```bash
 cd ~/hod_daily_reports && git checkout main && git merge dev && git push origin main
@@ -455,20 +473,11 @@ cd ~/hod_admin_portal && git checkout main && git merge dev && git push origin m
 Verify:
 - https://hoddailyreports.netlify.app loads and login works
 - https://hod-admin-portal.netlify.app loads and login works
-- Analysis page generates content within 20 seconds
-- Overview shows Daily Brief and Trend Insights
-
----
-
-## Long-term vision (not yet built)
-
-- **Cross-departmental action items** — AI-orchestrated work tracking between departments
-- **Food cost projections** — Kitchen inventory data for cost trending, consumption patterns
-- **Visitor landscape** — Main Gate + Reception data combined for people flow tracking
-- **Accommodation analysis** — Room grid data for occupancy rates and maintenance patterns
-- **Security trends** — Incident patterns, patrol coverage, equipment damage frequency
-- **WhatsApp alerts** — Urgent flag notifications via WhatsApp
-- **PWA / service worker** — True offline support beyond the current browser-API approach
+- HOD logo renders correctly
+- HOD Rooms tab works for Head Office, Reception, and Security according to the final policy
+- Admin Accommodation page loads and booking flows work
+- notifications and session smoke tests pass
+- no critical blocker remains in the final validation record
 
 ---
 
@@ -482,7 +491,7 @@ Both applications use a `main`/`dev` branching strategy across three GitHub repo
 | `thebusinessdevelopers/hod_daily_reports` | HOD portal deploy | `main` → hoddailyreports.netlify.app | `dev` → dev--hoddailyreports.netlify.app |
 | `thebusinessdevelopers/hod_admin_portal` | Admin portal deploy | `main` → hod-admin-portal.netlify.app | `dev` → dev--hod-admin-portal.netlify.app |
 
-The deploy repos are standalone mirrors of `portal/` and `admin-portal/`, each bundling `packages/shared/` directly. Push code changes to the deploy repos to trigger Netlify builds.
+The deploy repos are standalone mirrors of `portal/` and `admin-portal/`, each bundling `packages/shared/` directly.
 
 ---
 
@@ -493,8 +502,8 @@ The deploy repos are standalone mirrors of `portal/` and `admin-portal/`, each b
 3. **Mobile-friendly by default.** Test at 375px width minimum.
 4. **Config-driven forms.** Single renderer, config file defines everything.
 5. **JSONB for flexibility.** Form changes don't require DB migrations.
-6. **Test before moving on.** Every phase has a validation gate. All items must pass.
+6. **Test before moving on.** Every phase has a validation gate.
 
 ---
 
-*Updated: 8 April 2026. **v2.6 is live on production.** 14 bugs fixed, migration 017 applied, prod-spec iteration shipped, live validation passed, all five refinement phases complete. Promoted to production 8 April 2026. Full record in [`versions/v2.6/snapshot.md`](../versions/v2.6/snapshot.md). **Next:** v2.7+ planning.*
+*Updated: 11 April 2026. v2.8 development and the first refinement cycle remain part of the project history, but the release is now reopened under the second refinement plan. v2.6 remains production. **Current position:** Phase 1 source fixes and local/build verification are done, and Phase 2 through Phase 5 now all have local source passes prepared. **Next:** complete the live preview validation and audit gates for Phase 1, then validate and close the prepared later phases in order.*

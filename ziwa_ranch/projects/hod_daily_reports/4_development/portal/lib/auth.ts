@@ -53,7 +53,10 @@ export async function validateSession(token: string): Promise<(HodUser & { depar
 
   await supabase
     .from('hod_sessions')
-    .update({ last_active_at: new Date().toISOString() })
+    .update({
+      last_active_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + SESSION_DURATION_MS).toISOString(),
+    })
     .eq('id', session.id)
 
   const { data: user } = await supabase
@@ -83,17 +86,84 @@ export async function destroySession(token: string): Promise<void> {
   await supabase.from('hod_sessions').delete().eq('token', token)
 }
 
+export async function consumeSession(token: string): Promise<{ sessionId: string; userId: string } | null> {
+  const supabase = createServerClient()
+  const { data } = await supabase
+    .from('hod_sessions')
+    .delete()
+    .eq('token', token)
+    .select('id, user_id')
+    .maybeSingle()
+
+  if (!data) return null
+  return { sessionId: data.id, userId: data.user_id }
+}
+
 export async function logActivity(
   userId: string | null,
   action: string,
   metadata?: Record<string, unknown>
 ): Promise<void> {
+  if (await isDuplicateAuthActivity(userId, action, metadata)) {
+    return
+  }
+
   const supabase = createServerClient()
   await supabase.from('hod_activity_log').insert({
     user_id: userId,
     action,
     metadata: metadata ?? null,
   })
+}
+
+function withinWindow(createdAt: string, windowMs: number): boolean {
+  const createdMs = Date.parse(createdAt)
+  if (!Number.isFinite(createdMs)) return false
+  return Date.now() - createdMs <= windowMs
+}
+
+function stringMeta(meta: Record<string, unknown> | null | undefined, key: string): string | null {
+  const value = meta?.[key]
+  return typeof value === 'string' ? value : null
+}
+
+async function isDuplicateAuthActivity(
+  userId: string | null,
+  action: string,
+  metadata: Record<string, unknown> | undefined
+): Promise<boolean> {
+  if (!userId || !metadata) return false
+  if (action !== 'login' && action !== 'logout') return false
+
+  const supabase = createServerClient()
+  const { data: lastEntry } = await supabase
+    .from('hod_activity_log')
+    .select('created_at, metadata')
+    .eq('user_id', userId)
+    .eq('action', action)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!lastEntry?.created_at) return false
+  const lastMeta = (lastEntry.metadata ?? null) as Record<string, unknown> | null
+  const source = stringMeta(metadata, 'source')
+  const lastSource = stringMeta(lastMeta, 'source')
+  if (!source || source !== lastSource) return false
+
+  if (action === 'logout') {
+    if (!withinWindow(lastEntry.created_at, 5 * 60 * 1000)) return false
+    const suffix = stringMeta(metadata, 'session_token_suffix')
+    const lastSuffix = stringMeta(lastMeta, 'session_token_suffix')
+    return Boolean(suffix && lastSuffix && suffix === lastSuffix)
+  }
+
+  if (!withinWindow(lastEntry.created_at, 60 * 1000)) return false
+  const ip = stringMeta(metadata, 'ip_address')
+  const lastIp = stringMeta(lastMeta, 'ip_address')
+  const userAgent = stringMeta(metadata, 'user_agent')
+  const lastUserAgent = stringMeta(lastMeta, 'user_agent')
+  return ip === lastIp && userAgent === lastUserAgent
 }
 
 export async function getCurrentUser(): Promise<(HodUser & { department_slug: string | null }) | null> {

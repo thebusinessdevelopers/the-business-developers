@@ -2,9 +2,11 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase-server'
+import { getCurrentUser } from '@/lib/auth'
 import { getFormBySlug } from '@/config/forms'
 import { isWithinEditWindow, formatDateTimeKampala, formatDateLongKampala, getSubmissionStatus, getStatusLabel, getStatusBadgeClasses } from '@/lib/submission-status'
 import ViewReportContent from './ViewReportContent'
+import ReportThread from '../../ReportThread'
 
 interface PageProps {
   params: Promise<{ slug: string; id: string }>
@@ -43,6 +45,7 @@ export default async function ViewReportPage({ params }: PageProps) {
 
   if (r.hod_departments.slug !== slug) notFound()
 
+  const user = await getCurrentUser()
   const status = getSubmissionStatus(r.submitted_at, r.report_date)
   const canEdit = isWithinEditWindow(r.report_date)
 
@@ -78,12 +81,14 @@ export default async function ViewReportPage({ params }: PageProps) {
           </div>
 
           {r.acknowledged_at && (
-            <div className="flex items-center gap-2 text-xs text-green-700">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              Reviewed by {r.acknowledged_by}
-              {r.review_comments && (
-                <span className="text-gray-400">&mdash; &ldquo;{r.review_comments}&rdquo;</span>
-              )}
+            <div className="flex items-start gap-2 text-xs text-green-700 min-w-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1 shrink-0" />
+              <span className="break-words min-w-0">
+                Reviewed by {r.acknowledged_by}
+                {r.review_comments && (
+                  <span className="text-gray-400"> &mdash; &ldquo;{r.review_comments}&rdquo;</span>
+                )}
+              </span>
             </div>
           )}
 
@@ -109,6 +114,16 @@ export default async function ViewReportPage({ params }: PageProps) {
           departmentId={r.department_id}
           reportData={r.report_data}
         />
+
+        {user?.id && (
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Discussion</h2>
+            <ReportThread
+              reportId={r.id}
+              currentUserId={user.id}
+            />
+          </div>
+        )}
       </div>
     </main>
   )

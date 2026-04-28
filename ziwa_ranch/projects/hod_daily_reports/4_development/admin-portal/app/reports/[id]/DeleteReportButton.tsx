@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 interface DeleteReportButtonProps {
   reportId: string
@@ -10,6 +10,7 @@ interface DeleteReportButtonProps {
 
 export default function DeleteReportButton({ reportId, departmentName }: DeleteReportButtonProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,7 +34,8 @@ export default function DeleteReportButton({ reportId, departmentName }: DeleteR
         return
       }
 
-      router.push('/reports')
+      const params = searchParams.toString()
+      router.push(params ? `/reports?${params}` : '/reports')
       router.refresh()
     } catch {
       setError('Failed to delete report. Please try again.')

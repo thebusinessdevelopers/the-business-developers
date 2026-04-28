@@ -1,6 +1,7 @@
 'use client'
 
 import { FormField } from '@/types'
+import { shouldShowField } from '@hod/shared/lib/visible-if'
 import RepeaterField from '@/components/RepeaterField'
 import NumberStepper from '@/components/NumberStepper'
 import CalculationHint from '@/components/CalculationHint'
@@ -29,6 +30,8 @@ export default function FieldRenderer({
 }: FieldRendererProps) {
   const calculations = getCalculationsForSlug(slug)
 
+  if (!shouldShowField(field.visibleIf, values)) return null
+
   function getStringValue(name: string): string {
     return String(values[name] ?? '')
   }
@@ -46,7 +49,7 @@ export default function FieldRenderer({
 
   if (field.type === 'repeater') {
     const raw = values[field.name]
-    const rows = (Array.isArray(raw) ? raw : []) as Record<string, string | number>[]
+    const rows = (Array.isArray(raw) ? raw : []) as Record<string, unknown>[]
     return (
       <RepeaterField
         fieldName={field.name}
@@ -62,20 +65,38 @@ export default function FieldRenderer({
 
   if (field.type === 'checkbox_group') {
     const selected = (Array.isArray(values[field.name]) ? values[field.name] : []) as string[]
+    const options = field.options ?? []
+    const markerOption = 'Someone else'
+    const hasCustomEntries = field.allowCustomEntries && options.includes(markerOption)
+    const showCustomInputs = hasCustomEntries && selected.includes(markerOption)
+    const customNames = hasCustomEntries
+      ? selected.filter((s) => s !== markerOption && !options.includes(s))
+      : []
+
+    function toTitleCase(text: string): string {
+      return text.trim().replace(/\s+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    }
+
     return (
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">{field.label}</label>
         <div className="grid grid-cols-2 gap-2">
-          {field.options?.map((opt) => (
+          {options.map((opt) => (
             <label key={opt} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
               <input
                 type="checkbox"
                 checked={selected.includes(opt)}
                 disabled={disabled}
                 onChange={(e) => {
-                  const next = e.target.checked
-                    ? [...selected, opt]
-                    : selected.filter((s) => s !== opt)
+                  let next: string[]
+                  if (e.target.checked) {
+                    next = [...selected, opt]
+                  } else {
+                    next = selected.filter((s) => s !== opt)
+                    if (opt === markerOption && hasCustomEntries) {
+                      next = next.filter((s) => options.includes(s))
+                    }
+                  }
                   setValue(field.name, next)
                 }}
                 className="rounded border-gray-300 text-ziwa-500 focus:ring-ziwa-500"
@@ -84,6 +105,55 @@ export default function FieldRenderer({
             </label>
           ))}
         </div>
+        {showCustomInputs && !disabled && (
+          <div className="space-y-2 pl-1 border-l-2 border-gray-200 ml-1">
+            {customNames.map((name, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => {
+                    const updated = [...selected]
+                    const allCustomIdx = selected.indexOf(name)
+                    if (allCustomIdx !== -1) updated[allCustomIdx] = e.target.value
+                    setValue(field.name, updated)
+                  }}
+                  onBlur={(e) => {
+                    const titled = toTitleCase(e.target.value)
+                    if (titled && titled !== name) {
+                      setValue(field.name, selected.map((s) => s === name ? titled : s))
+                    }
+                  }}
+                  placeholder="Type name..."
+                  className={inputClass + ' flex-1'}
+                />
+                <button
+                  type="button"
+                  onClick={() => setValue(field.name, selected.filter((s) => s !== name))}
+                  className="text-xs text-red-500 hover:text-red-700"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setValue(field.name, [...selected, ''])}
+              className="text-xs text-ziwa-600 hover:text-ziwa-700 font-medium"
+            >
+              + Add another name
+            </button>
+          </div>
+        )}
+        {showCustomInputs && !disabled && customNames.length === 0 && (
+          <button
+            type="button"
+            onClick={() => setValue(field.name, [...selected, ''])}
+            className="text-xs text-ziwa-600 hover:text-ziwa-700 font-medium pl-1"
+          >
+            + Add name
+          </button>
+        )}
       </div>
     )
   }
@@ -105,6 +175,9 @@ export default function FieldRenderer({
         {field.label}
         {field.required && !readOnly && <span className="text-red-500 ml-1">*</span>}
       </label>
+      {field.helpText && !readOnly && (
+        <p className="text-xs text-gray-400 mt-0.5">{field.helpText}</p>
+      )}
 
       {field.type === 'textarea' && (
         <textarea

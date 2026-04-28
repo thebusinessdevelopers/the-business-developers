@@ -197,13 +197,16 @@ export function getExpectedReportingDays(fromDateStr: string, toDateStr: string)
   const todayKampala = getKampalaDateStr(now)
   const kampalaHour = getKampalaHour(now)
 
+  const yesterdayDate = new Date(todayKampala + 'T00:00:00Z')
+  yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1)
+  const yesterdayStr = yesterdayDate.toISOString().split('T')[0]
+
   while (d <= end) {
     const dateStr = d.toISOString().split('T')[0]
-    const dayOfWeek = d.getUTCDay()
-    if (dayOfWeek !== 0) {
-      if (!(dateStr === todayKampala && kampalaHour < 16)) {
-        dates.push(dateStr)
-      }
+    if (dateStr < yesterdayStr) {
+      dates.push(dateStr)
+    } else if (dateStr === yesterdayStr && kampalaHour >= 15) {
+      dates.push(dateStr)
     }
     d.setUTCDate(d.getUTCDate() + 1)
   }

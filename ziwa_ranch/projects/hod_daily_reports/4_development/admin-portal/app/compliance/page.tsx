@@ -2,8 +2,11 @@ export const dynamic = 'force-dynamic'
 
 import { createServerClient } from '@/lib/supabase-server'
 import { getKampalaDateStr, getExpectedReportingDays, formatDateKampala } from '@/lib/submission-status'
+import { getAdminUser } from '@/lib/admin-auth'
+import { redirect } from 'next/navigation'
 import CompliancePeriodSelector from './CompliancePeriodSelector'
 import WhatsAppComplianceButton from './WhatsAppComplianceButton'
+import ComplianceRow from './ComplianceRow'
 
 interface PageProps {
   searchParams: Promise<{ days?: string }>
@@ -22,6 +25,11 @@ interface ReportRow {
 }
 
 export default async function CompliancePage({ searchParams }: PageProps) {
+  const admin = await getAdminUser()
+  if (!admin || admin.access_level !== 'full') {
+    redirect('/')
+  }
+
   const params = await searchParams
   const days = Number(params.days) || 7
   const supabase = createServerClient()
@@ -54,6 +62,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
     const submitted = expectedDates.filter((date) => submittedDates.has(date)).length
     const missed = expectedDates.length - submitted
     const rate = expectedDates.length > 0 ? Math.round((submitted / expectedDates.length) * 100) : 0
+    const missingDates = expectedDates.filter((date) => !submittedDates.has(date))
 
     return {
       ...dept,
@@ -61,6 +70,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
       missed,
       rate,
       total: expectedDates.length,
+      missingDates,
     }
   })
 
@@ -72,11 +82,11 @@ export default async function CompliancePage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Compliance</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Submission rates over {days} days ({expectedDates.length} reporting days, Sundays excluded).
+            Submission rates over {days} days ({expectedDates.length} reporting days, all 7 days/week).
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -96,24 +106,17 @@ export default async function CompliancePage({ searchParams }: PageProps) {
 
       <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
         {stats.map((dept) => (
-          <div key={dept.id} className="flex items-center gap-4 px-5 py-4">
-            <p className="text-sm font-medium text-gray-900 w-44 flex-shrink-0">{dept.name}</p>
-            <div className="flex-1 flex items-center gap-3">
-              <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    dept.rate >= 80 ? 'bg-green-500' : dept.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${Math.min(dept.rate, 100)}%` }}
-                />
-              </div>
-              <span className="text-sm font-semibold text-gray-900 w-12 text-right">{dept.rate}%</span>
-            </div>
-            <div className="flex gap-4 text-xs text-gray-400 flex-shrink-0">
-              <span className="text-green-600">{dept.submitted} submitted</span>
-              {dept.missed > 0 && <span className="text-red-500">{dept.missed} missed</span>}
-            </div>
-          </div>
+          <ComplianceRow
+            key={dept.id}
+            slug={dept.slug}
+            name={dept.name}
+            submitted={dept.submitted}
+            missed={dept.missed}
+            rate={dept.rate}
+            missingDates={dept.missingDates}
+            fromStr={fromStr}
+            toDate={today}
+          />
         ))}
       </div>
     </div>

@@ -1,3 +1,7 @@
+'use client'
+
+import { useState } from 'react'
+
 interface StockProjectionItem {
   item: string
   quantity: number
@@ -7,9 +11,12 @@ interface StockProjectionItem {
 interface StockProjectionDisplayProps {
   items: StockProjectionItem[]
   stockType: 'bar' | 'store' | 'kitchen'
+  collapsible?: boolean
 }
 
-export default function StockProjectionDisplay({ items, stockType }: StockProjectionDisplayProps) {
+export default function StockProjectionDisplay({ items, stockType, collapsible = false }: StockProjectionDisplayProps) {
+  const [isCollapsed, setIsCollapsed] = useState(true)
+
   const title = stockType === 'bar' ? 'Projected Bar Stock'
     : stockType === 'kitchen' ? 'Projected Kitchen Stock'
     : 'Projected Store Stock'
@@ -19,10 +26,40 @@ export default function StockProjectionDisplay({ items, stockType }: StockProjec
     ? 'Based on Monday\'s stock count plus stock added, minus stock used this week.'
     : 'Based on Monday\'s stock count plus goods added, minus goods taken this week.'
 
+  const lowCount = items.filter(i => i.quantity < 0).length
+
+  if (collapsible && isCollapsed) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+        <h2 className="text-base font-semibold text-blue-900 mb-1">{title}</h2>
+        <p className="text-sm text-blue-700">
+          {items.length} items tracked{lowCount > 0 ? `; ${lowCount} projected low` : ''}
+        </p>
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(false)}
+          className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-800"
+        >
+          Show details ▾
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
       <h2 className="text-base font-semibold text-blue-900 mb-1">{title}</h2>
       <p className="text-xs text-blue-600 mb-4">{description}</p>
+
+      {collapsible && (
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(true)}
+          className="mb-3 text-xs font-medium text-blue-600 hover:text-blue-800"
+        >
+          Hide details ▴
+        </button>
+      )}
 
       {items.length === 0 ? (
         <p className="text-sm text-blue-700">No stock data available yet. Submit a Monday stock count to begin.</p>

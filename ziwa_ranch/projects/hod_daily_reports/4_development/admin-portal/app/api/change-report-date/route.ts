@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase-server'
 
 export async function POST(request: Request) {
   try {
-    const authError = await verifyAdminAuth()
+    const authError = await verifyAdminAuth('report_manage')
     if (authError) return authError
 
     const admin = await getAdminUser()

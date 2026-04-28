@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import {
   getSmartDateButtons,
   isWithinEditWindow,
@@ -14,6 +15,12 @@ import {
   getKampalaDateStr,
 } from '@/lib/submission-status'
 import EditCountdown from '@/components/EditCountdown'
+import NotificationBadge from '@hod/shared/components/NotificationBadge'
+import { useNotifications } from '@/hooks/useNotifications'
+
+const MessagesTab = dynamic(() => import('./MessagesTab'))
+const MeetingsTab = dynamic(() => import('./MeetingsTab'))
+const RoomsTab = dynamic(() => import('./RoomsTab'))
 
 interface RecentReport {
   id: string
@@ -33,26 +40,60 @@ interface Announcement {
   body: string
   priority: string
   created_at: string
+  announcement_type: string | null
+}
+
+type HubTab = 'reports' | 'messages' | 'meetings' | 'rooms'
+
+interface ForcedAckItem {
+  id: string
+  title: string
+  body: string
 }
 
 interface DepartmentHubProps {
   departmentName: string
   departmentSlug: string
   departmentId: string
+  currentUserId: string | null
   recentReports: RecentReport[]
   announcements?: Announcement[]
+  unacknowledgedForcedAck?: ForcedAckItem[]
 }
 
 export default function DepartmentHub({
   departmentName,
   departmentSlug,
+  departmentId,
+  currentUserId,
   recentReports,
   announcements = [],
+  unacknowledgedForcedAck = [],
 }: DepartmentHubProps) {
   const router = useRouter()
   const [showWarning, setShowWarning] = useState(false)
   const [pendingDate, setPendingDate] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
+  const [activeTab, setActiveTab] = useState<HubTab>('reports')
+  const [pendingAcks, setPendingAcks] = useState<ForcedAckItem[]>(unacknowledgedForcedAck)
+  const [ackSubmitting, setAckSubmitting] = useState(false)
+
+  const { notifications, unreadCount, loading: notifLoading, markRead, markAllRead } = useNotifications()
+
+  const MEETING_NOTIF_TYPES = useMemo(() => new Set([
+    'meeting_approved', 'action_item_assigned', 'action_item_submitted',
+    'action_item_verified', 'action_item_rejected', 'action_item_completed',
+    'secretary_invited',
+  ]), [])
+
+  const meetingUnreadCount = useMemo(
+    () => notifications.filter(n => !n.is_read && MEETING_NOTIF_TYPES.has(n.type)).length,
+    [notifications, MEETING_NOTIF_TYPES]
+  )
+  const messageUnreadCount = useMemo(
+    () => notifications.filter(n => !n.is_read && !MEETING_NOTIF_TYPES.has(n.type)).length,
+    [notifications, MEETING_NOTIF_TYPES]
+  )
 
   const todayKampala = getKampalaDateStr(new Date())
   const kampalaHour = Number(new Date().toLocaleString('en-GB', { timeZone: 'Africa/Kampala', hour: 'numeric', hour12: false }))
@@ -85,22 +126,129 @@ export default function DepartmentHub({
     router.push(`/report/${departmentSlug}/new?date=${d.toISOString().split('T')[0]}`)
   }
 
+  async function handleAcknowledge(announcementId: string) {
+    setAckSubmitting(true)
+    try {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Kampala' })
+      const res = await fetch('/api/announcements/acknowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announcementId, recurrenceDate: today }),
+      })
+      if (res.ok) {
+        setPendingAcks(prev => prev.filter(a => a.id !== announcementId))
+      }
+    } catch {
+      // Non-blocking — modal stays visible for retry
+    } finally {
+      setAckSubmitting(false)
+    }
+  }
+
   const displayReports = showAll ? recentReports : recentReports.slice(0, 5)
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{departmentName}</h1>
-          <p className="text-sm text-gray-500 mt-1">Choose a date to submit or view a report.</p>
-        </div>
-        <Link
-          href="/account"
-          className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-md px-2 py-1 hover:bg-gray-50 transition-colors"
-        >
-          Account
-        </Link>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">{departmentName}</h1>
+        <p className="text-sm text-gray-500 mt-1">Choose a date to submit or view a report.</p>
       </div>
+
+      {/* Tab switcher */}
+      <div className="flex border-b border-gray-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab('reports')}
+          className={`flex-1 text-center py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'reports'
+              ? 'text-ziwa-600 border-b-2 border-ziwa-500'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Reports
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('messages')}
+          className={`flex-1 text-center py-2.5 text-sm font-medium transition-colors relative ${
+            activeTab === 'messages'
+              ? 'text-ziwa-600 border-b-2 border-ziwa-500'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Messages
+          {messageUnreadCount > 0 && (
+            <span className="ml-1.5 inline-block align-middle">
+              <NotificationBadge count={messageUnreadCount} />
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('meetings')}
+          className={`flex-1 text-center py-2.5 text-sm font-medium transition-colors relative ${
+            activeTab === 'meetings'
+              ? 'text-ziwa-600 border-b-2 border-ziwa-500'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Meetings
+          {meetingUnreadCount > 0 && (
+            <span className="ml-1.5 inline-block align-middle">
+              <NotificationBadge count={meetingUnreadCount} />
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('rooms')}
+          className={`flex-1 text-center py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'rooms'
+              ? 'text-ziwa-600 border-b-2 border-ziwa-500'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Rooms
+        </button>
+      </div>
+
+      {/* Messages tab content */}
+      {activeTab === 'messages' && currentUserId && (
+        <MessagesTab
+          notifications={notifications}
+          unreadCount={unreadCount}
+          loading={notifLoading}
+          currentUserId={currentUserId}
+          onMarkRead={markRead}
+          onMarkAllRead={markAllRead}
+        />
+      )}
+
+      {activeTab === 'messages' && !currentUserId && (
+        <div className="text-center py-12">
+          <p className="text-sm text-gray-500">Sign in with your account to view messages.</p>
+        </div>
+      )}
+
+      {activeTab === 'meetings' && currentUserId && (
+        <MeetingsTab
+          currentUserId={currentUserId}
+          departmentId={departmentId}
+        />
+      )}
+
+      {activeTab === 'meetings' && !currentUserId && (
+        <div className="text-center py-12">
+          <p className="text-sm text-gray-500">Sign in with your account to view meetings.</p>
+        </div>
+      )}
+
+      {activeTab === 'rooms' && (
+        <RoomsTab departmentSlug={departmentSlug} currentUserId={currentUserId} />
+      )}
+
+      {/* Reports tab content */}
+      {activeTab === 'reports' && <>
 
       {/* Announcements */}
       {announcements.length > 0 && (
@@ -228,12 +376,14 @@ export default function DepartmentHub({
                 </div>
 
                 {report.acknowledged_at && (
-                  <div className="flex items-center gap-2 text-xs text-green-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                    Reviewed by {report.acknowledged_by}
-                    {report.review_comments && (
-                      <span className="text-gray-400">&mdash; &ldquo;{report.review_comments}&rdquo;</span>
-                    )}
+                  <div className="flex items-start gap-2 text-xs text-green-700 min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1 shrink-0" />
+                    <span className="break-words min-w-0">
+                      Reviewed by {report.acknowledged_by}
+                      {report.review_comments && (
+                        <span className="text-gray-400"> &mdash; &ldquo;{report.review_comments}&rdquo;</span>
+                      )}
+                    </span>
                   </div>
                 )}
 
@@ -279,6 +429,36 @@ export default function DepartmentHub({
               Show all reports
             </button>
           )}
+        </div>
+      )}
+
+      </>}
+
+      {/* Forced acknowledgement modal */}
+      {pendingAcks.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <h3 className="text-lg font-bold text-gray-900">Acknowledgement Required</h3>
+            <p className="text-sm text-gray-600">
+              You must acknowledge the following before submitting your report:
+            </p>
+            <div className="space-y-3">
+              {pendingAcks.map(a => (
+                <div key={a.id} className="border border-red-200 bg-red-50 rounded-lg px-4 py-3">
+                  <p className="text-sm font-semibold text-red-800">{a.title}</p>
+                  <p className="text-sm text-red-700 mt-0.5">{a.body}</p>
+                  <button
+                    type="button"
+                    disabled={ackSubmitting}
+                    onClick={() => handleAcknowledge(a.id)}
+                    className="mt-2 text-xs bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white font-semibold px-4 py-1.5 rounded-md transition-colors"
+                  >
+                    {ackSubmitting ? 'Acknowledging…' : 'I acknowledge'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

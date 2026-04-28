@@ -1,17 +1,6 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { validateSession, destroySession, SESSION_COOKIE_NAME } from '@/lib/auth'
-
-const TZ = 'Africa/Kampala'
-
-function getKampalaTimeStr(): string {
-  return new Date().toLocaleString('en-GB', {
-    timeZone: TZ,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
-}
+import { validateSession, SESSION_COOKIE_NAME, getSessionCookieConfig } from '@/lib/auth'
 
 export async function GET() {
   try {
@@ -19,24 +8,17 @@ export async function GET() {
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value
 
     if (!token) {
-      return NextResponse.json({ valid: false })
+      return NextResponse.json({ valid: false, reason: 'missing_session' })
     }
 
     const user = await validateSession(token)
     if (!user) {
-      return NextResponse.json({ valid: false })
+      return NextResponse.json({ valid: false, reason: 'invalid_session' })
     }
 
-    if (user.auto_logout_enabled) {
-      const kampalaTime = getKampalaTimeStr()
-      if (kampalaTime >= user.logout_time) {
-        await destroySession(token)
-        return NextResponse.json({ valid: false, reason: 'daily_logout' })
-      }
-    }
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       valid: true,
+      logout_due: false,
       user: {
         id: user.id,
         hod_name: user.hod_name,
@@ -47,7 +29,18 @@ export async function GET() {
         idle_timeout_minutes: user.idle_timeout_minutes,
       },
     })
+
+    const cfg = getSessionCookieConfig(token)
+    response.cookies.set(cfg.name, cfg.value, {
+      httpOnly: cfg.httpOnly,
+      secure: cfg.secure,
+      sameSite: cfg.sameSite,
+      path: cfg.path,
+      maxAge: cfg.maxAge,
+    })
+
+    return response
   } catch {
-    return NextResponse.json({ valid: false })
+    return NextResponse.json({ valid: false, reason: 'session_check_failed' })
   }
 }

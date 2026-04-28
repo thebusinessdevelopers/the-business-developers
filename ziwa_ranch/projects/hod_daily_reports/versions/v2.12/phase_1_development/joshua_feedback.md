@@ -1,0 +1,15 @@
+Here is my feedback and observations on v2.11, I will also communicate what it is I expect from that in v2.12:
+
+- Head Office need to be included in the HOD meeting attendance. specifically Florence who is HOD for head office, she is substituted by either Julie or Faith. Their attendance is almost always going to be virtual (whatsapp/phone). I expect to be able to select them in the attendance and select their type of attendance: "Phone" or "In-Person". Default to Phone.
+
+- Isaac (Head Office Manager) needs to also be involved in the hod meetings. HIs attendance will also be virtual. I expect to be able to select them in the attendance and select their type of attendance: "Phone" or "In-Person". Default to Phone.
+
+- I am having trouble with HOD's (namely Robert Electrician) who had started submitting on the wrong date: i.e they submitted their report for yesterday on today so now they are stuck in this perpetual loop where they can only submit the report for yesterday today which is wrong. I need you to perform report investigation and figure out how many reports from departments are following this trend, how many we need to rectify to get it right, is the warning for reporting on the wrong date being shown to the hod's and give me a plan to fix the issue now.
+
+- I need an evaluation on the model we are using for ai functionality in the app, openrouter has access to many faster and more intelligent models. I want to prioritise intelligence to be able to navigate and accurately pull context and information from the various sources available.
+
+- I need a real concentrated effort to improve prompting and model context for tasks for the ai functionality. We must improve the prompting and context available to the agent to do it's job th ebest. The context for the best outputs is found between the lines and within a lot of incredble data. Perhaps we can use a multi agent infratructure to improve the context management and task specificity. Perhaps we can use sub agents to help increase accuracy and context extracttion. Then the outputs themselves, we need a better more naturally commmunicative schema for the outputs. The ability for the ai functionality to provide incredible value in well engineered packaging is paramount. I expect a multi agent structure implemented with sub agents (prioritise fast and accurate models, cheaper) conducting specific tasks for the conducting agent (prioritise intelligent models).
+
+- We need to somehow disconnect the agents from the netlify timeout, I do not want to place a limit on my agents conducting these tasks to bring ai intelligence. I want the processes to be methodical to ensure a lot of added value from it. They should run in the background, unaffected by the netlify. Then when they are done with their task it should push to netlify and populate then cache to ensure it does not have to repeat unless i specifically choose it too.
+
+- When regenerating a generation, i must be able to add feedback or observaiton prmpting to ensure the next generation is better.

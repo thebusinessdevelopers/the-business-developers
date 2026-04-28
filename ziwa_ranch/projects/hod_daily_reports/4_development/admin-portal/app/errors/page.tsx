@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import { createServerClient } from '@/lib/supabase-server'
+import { getAdminUser, isMdAdmin } from '@/lib/admin-auth'
+import { redirect } from 'next/navigation'
+import FailedMediaPanel from './FailedMediaPanel'
 
 interface ErrorRow {
   id: string
@@ -29,27 +32,47 @@ function formatDateTime(iso: string): string {
 }
 
 export default async function ErrorsPage() {
+  const admin = await getAdminUser()
+  if (!admin || !isMdAdmin(admin)) {
+    redirect('/')
+  }
+
   const supabase = createServerClient()
 
-  const { data: errors } = await supabase
-    .from('hod_error_log')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(100)
+  const [errorResult, deptResult, failedMediaResult] = await Promise.all([
+    supabase
+      .from('hod_error_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100),
+    supabase
+      .from('hod_departments')
+      .select('id, name'),
+    supabase
+      .from('hod_report_media')
+      .select('id, generated_filename, hod_description, context_category, ai_status, ai_error_message, report_date, created_at, department_id')
+      .in('ai_status', ['failed', 'pending'])
+      .order('created_at', { ascending: false })
+      .limit(50),
+  ])
 
-  const { data: departments } = await supabase
-    .from('hod_departments')
-    .select('id, name')
-
-  const deptMap = new Map((departments as DeptRow[] ?? []).map((d) => [d.id, d.name]))
-  const rows = (errors ?? []) as ErrorRow[]
+  const deptMap = new Map((deptResult.data as DeptRow[] ?? []).map((d) => [d.id, d.name]))
+  const rows = (errorResult.data ?? []) as ErrorRow[]
+  const failedMedia = (failedMediaResult.data ?? []).map(m => ({
+    ...m,
+    department_name: m.department_id ? deptMap.get(m.department_id) ?? 'Unknown' : 'Unknown',
+  }))
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Error Log</h1>
-        <p className="text-sm text-gray-500 mt-1">Submission errors reported by HODs. Most recent first.</p>
+        <p className="text-sm text-gray-500 mt-1">Submission errors and AI processing failures. Most recent first.</p>
       </div>
+
+      {failedMedia.length > 0 && (
+        <FailedMediaPanel items={failedMedia} />
+      )}
 
       {rows.length === 0 ? (
         <div className="text-center py-16 text-gray-400">

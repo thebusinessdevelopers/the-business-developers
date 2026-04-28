@@ -5,7 +5,15 @@ import AutocompleteInput from './AutocompleteInput'
 import { calculateVehicleDistance } from '../config/calculations'
 
 interface RepeaterRow {
-  [key: string]: string | number
+  [key: string]: unknown
+}
+
+export interface PhotoSubFieldProps {
+  fieldName: string
+  rowIndex: number
+  entryKey: string
+  value: unknown
+  onChange: (val: unknown) => void
 }
 
 interface RepeaterFieldProps {
@@ -17,6 +25,7 @@ interface RepeaterFieldProps {
   onChange: (rows: RepeaterRow[]) => void
   departmentSlug?: string
   showVehicleDistance?: boolean
+  renderPhotoSubField?: (props: PhotoSubFieldProps) => React.ReactNode
 }
 
 export default function RepeaterField({
@@ -27,6 +36,7 @@ export default function RepeaterField({
   value,
   onChange,
   departmentSlug,
+  renderPhotoSubField,
 }: RepeaterFieldProps) {
   const isVehicleUsage = fieldName === 'vehicle_usage'
   const rows = value.length > 0 ? value : minRows > 0 ? Array.from({ length: minRows }, () => emptyRow(subFields)) : []
@@ -35,7 +45,7 @@ export default function RepeaterField({
     return Object.fromEntries(fields.map((f) => [f.name, '']))
   }
 
-  function updateRow(index: number, field: string, val: string) {
+  function updateRow(index: number, field: string, val: unknown) {
     const updated = rows.map((row, i) => (i === index ? { ...row, [field]: val } : row))
     onChange(updated)
   }
@@ -75,7 +85,7 @@ export default function RepeaterField({
           </div>
 
           {isVehicleUsage && (() => {
-            const dist = calculateVehicleDistance(row.opening_mileage, row.closing_mileage)
+            const dist = calculateVehicleDistance(row.opening_mileage as string | number, row.closing_mileage as string | number)
             if (dist === null) return null
             return (
               <p className="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1">
@@ -86,6 +96,16 @@ export default function RepeaterField({
 
           {subFields.map((sub) => (
             <div key={sub.name}>
+              {sub.type === 'photo' ? (
+                renderPhotoSubField ? renderPhotoSubField({
+                  fieldName,
+                  rowIndex,
+                  entryKey: `${fieldName}_${rowIndex}`,
+                  value: row[sub.name],
+                  onChange: (val) => updateRow(rowIndex, sub.name, val),
+                }) : null
+              ) : (
+              <>
               <label className="block text-xs text-gray-600 mb-1">{sub.label}</label>
               {sub.type === 'textarea' ? (
                 <textarea
@@ -126,6 +146,8 @@ export default function RepeaterField({
                   placeholder={sub.placeholder}
                   className={fieldClass}
                 />
+              )}
+              </>
               )}
             </div>
           ))}

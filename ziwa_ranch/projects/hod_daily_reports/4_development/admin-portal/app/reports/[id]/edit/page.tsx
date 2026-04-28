@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic'
 
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase-server'
-import { getAdminUser } from '@/lib/admin-auth'
+import { getAdminUser, hasAdminCapability } from '@/lib/admin-auth'
 import { getFormBySlug, LEGACY_HOUSEKEEPING_CONFIG } from '@/config/forms'
 import AdminEditForm from './AdminEditForm'
 
@@ -12,6 +12,11 @@ interface PageProps {
 }
 
 export default async function AdminEditPage({ params }: PageProps) {
+  const admin = await getAdminUser()
+  if (!admin || !hasAdminCapability(admin, 'report_manage')) {
+    redirect('/')
+  }
+
   const { id } = await params
   const supabase = createServerClient()
 
@@ -36,8 +41,7 @@ export default async function AdminEditPage({ params }: PageProps) {
   const formConfig = isLegacyHousekeeping ? LEGACY_HOUSEKEEPING_CONFIG : getFormBySlug(r.hod_departments.slug)
   if (!formConfig) notFound()
 
-  const admin = await getAdminUser()
-  const editorName = admin ? `${admin.hod_name} (${admin.admin_title})` : 'Admin'
+  const editorName = `${admin.hod_name} (${admin.admin_title})`
 
   return (
     <div>

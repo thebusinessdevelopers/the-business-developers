@@ -4,10 +4,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 
 interface Props {
   departments: { name: string; slug: string }[]
-  defaultFrom: string
 }
 
-export default function ReportFilters({ departments, defaultFrom }: Props) {
+export default function ReportFilters({ departments }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -18,6 +17,7 @@ export default function ReportFilters({ departments, defaultFrom }: Props) {
     } else {
       params.delete(key)
     }
+    if (key !== 'page') params.delete('page')
     router.push(`/reports?${params.toString()}`)
   }
 
@@ -39,7 +39,7 @@ export default function ReportFilters({ departments, defaultFrom }: Props) {
 
       <input
         type="date"
-        value={searchParams.get('from') ?? defaultFrom}
+        value={searchParams.get('from') ?? ''}
         onChange={(e) => update('from', e.target.value)}
         className={inputClass}
         placeholder="From"
@@ -71,6 +71,16 @@ export default function ReportFilters({ departments, defaultFrom }: Props) {
         <option value="">All reviews</option>
         <option value="reviewed">Reviewed</option>
         <option value="unreviewed">Unreviewed</option>
+      </select>
+
+      <select
+        value={searchParams.get('perPage') ?? '50'}
+        onChange={(e) => update('perPage', e.target.value === '50' ? '' : e.target.value)}
+        className={inputClass}
+      >
+        <option value="25">25 per page</option>
+        <option value="50">50 per page</option>
+        <option value="100">100 per page</option>
       </select>
     </div>
   )

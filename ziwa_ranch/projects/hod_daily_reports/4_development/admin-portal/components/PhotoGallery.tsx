@@ -12,6 +12,8 @@ interface MediaItem {
   context_category: string
   created_at: string
   signed_url?: string
+  full_signed_url?: string
+  google_drive_url?: string | null
 }
 
 interface PhotoGalleryProps {
@@ -36,9 +38,9 @@ export default function PhotoGallery({ media }: PhotoGalleryProps) {
             <div className="relative">
               {item.signed_url ? (
                 <img
-                  src={item.signed_url}
+                  src={expanded === item.id && item.full_signed_url ? item.full_signed_url : item.signed_url}
                   alt={item.ai_description || item.hod_description}
-                  className="w-full h-32 object-cover"
+                  className={expanded === item.id ? 'w-full object-contain max-h-96' : 'w-full h-32 object-cover'}
                   loading="lazy"
                 />
               ) : (
@@ -78,6 +80,20 @@ export default function PhotoGallery({ media }: PhotoGalleryProps) {
                   <span className="font-medium">Uploaded:</span>{' '}
                   {new Date(item.created_at).toLocaleString('en-GB', { timeZone: 'Africa/Kampala' })}
                 </p>
+                {item.google_drive_url && (
+                  <a
+                    href={item.google_drive_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-ziwa-600 hover:text-ziwa-700 font-medium mt-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7.71 3.5L1.15 15l4.58 7.5h13.54l4.58-7.5L17.29 3.5H7.71zm.58 1h8.42l5.44 9.5H2.85l5.44-9.5zM5.07 15h13.86l-3.47 5.5H8.54L5.07 15z"/>
+                    </svg>
+                    View in Google Drive
+                  </a>
+                )}
               </div>
             )}
           </div>

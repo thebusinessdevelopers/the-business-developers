@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
+import { withAuth } from '@/lib/with-auth'
+import { canAccessDepartment } from '@/lib/department-access'
 
 interface StockItem {
   item: string
@@ -7,13 +9,13 @@ interface StockItem {
   unit: string
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
-  const { slug } = await params
+export const GET = withAuth(async (
+  { user, guest, request },
+  context?: { params: Promise<{ slug: string }> }
+) => {
+  const slug = (await context?.params)?.slug
   const date = request.nextUrl.searchParams.get('date')
-  if (!date) {
+  if (!slug || !date) {
     return NextResponse.json({ error: 'date parameter required' }, { status: 400 })
   }
 
@@ -21,12 +23,15 @@ export async function GET(
 
   const { data: dept } = await supabase
     .from('hod_departments')
-    .select('id')
+    .select('id, slug')
     .eq('slug', slug)
     .single()
 
   if (!dept) {
     return NextResponse.json({ error: 'Department not found' }, { status: 404 })
+  }
+  if (!canAccessDepartment({ user, guest }, { id: dept.id, slug: dept.slug })) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const stockType = slug === 'food-and-beverage' ? 'bar' : slug === 'kitchen' ? 'kitchen' : 'store'
@@ -49,10 +54,9 @@ export async function GET(
   const baseline = (verifiedStock.items as StockItem[]) || []
   const sinceDate = verifiedStock.entry_date
 
-  // Fetch all daily reports for this department from the day after verified stock through the given date
   const { data: reports } = await supabase
     .from('hod_daily_reports')
-    .select('report_data, report_date')
+    .select('report_date, beverage_sales:report_data->beverage_sales, stock_added:report_data->stock_added, stock_used:report_data->stock_used, goods_added:report_data->goods_added, goods_taken:report_data->goods_taken')
     .eq('department_id', dept.id)
     .gt('report_date', sinceDate)
     .lte('report_date', date)
@@ -65,10 +69,10 @@ export async function GET(
 
   if (reports) {
     for (const report of reports) {
-      const data = report.report_data as Record<string, unknown>
+      const r = report as Record<string, unknown>
 
       if (stockType === 'bar') {
-        const sales = data.beverage_sales as { beverage?: string; quantity_sold?: number }[] | undefined
+        const sales = r.beverage_sales as { beverage?: string; quantity_sold?: number }[] | undefined
         if (Array.isArray(sales)) {
           for (const sale of sales) {
             if (!sale.beverage) continue
@@ -80,7 +84,7 @@ export async function GET(
           }
         }
       } else if (stockType === 'kitchen') {
-        const added = data.stock_added as { item?: string; quantity?: number }[] | undefined
+        const added = r.stock_added as { item?: string; quantity?: number }[] | undefined
         if (Array.isArray(added)) {
           for (const entry of added) {
             if (!entry.item) continue
@@ -94,7 +98,7 @@ export async function GET(
           }
         }
 
-        const used = data.stock_used as { item?: string; quantity?: number }[] | undefined
+        const used = r.stock_used as { item?: string; quantity?: number }[] | undefined
         if (Array.isArray(used)) {
           for (const entry of used) {
             if (!entry.item) continue
@@ -106,7 +110,7 @@ export async function GET(
           }
         }
       } else {
-        const added = data.goods_added as { item?: string; quantity?: number }[] | undefined
+        const added = r.goods_added as { item?: string; quantity?: number }[] | undefined
         if (Array.isArray(added)) {
           for (const entry of added) {
             if (!entry.item) continue
@@ -120,7 +124,7 @@ export async function GET(
           }
         }
 
-        const taken = data.goods_taken as { item?: string; quantity?: number }[] | undefined
+        const taken = r.goods_taken as { item?: string; quantity?: number }[] | undefined
         if (Array.isArray(taken)) {
           for (const entry of taken) {
             if (!entry.item) continue
@@ -138,4 +142,4 @@ export async function GET(
   const items = Array.from(projected.values()).sort((a, b) => a.item.localeCompare(b.item))
 
   return NextResponse.json({ items, baselineDate: sinceDate })
-}
+}, { allowGuest: true })

@@ -2,7 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase-server'
-import { getAdminUser } from '@/lib/admin-auth'
+import { getAdminUser, isMdAdmin } from '@/lib/admin-auth'
+import { redirect } from 'next/navigation'
 import ActivityFilter from './ActivityFilter'
 
 interface ActivityEntry {
@@ -73,7 +74,10 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   const perPage = 50
 
   const admin = await getAdminUser()
-  const isSenior = admin?.admin_tier === 'senior'
+  if (!admin || !isMdAdmin(admin)) {
+    redirect('/')
+  }
+  const isSenior = isMdAdmin(admin)
   const tab = isSenior ? (sp.tab ?? 'hod') : 'hod'
 
   const supabase = createServerClient()
@@ -120,7 +124,7 @@ export default async function ActivityPage({ searchParams }: PageProps) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <h1 className="text-xl font-bold text-gray-900">Activity Log</h1>
           {isSenior && (
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
@@ -163,7 +167,10 @@ export default async function ActivityPage({ searchParams }: PageProps) {
           activities.map((entry) => {
             const meta = entry.metadata ?? {}
             const reportId = (meta.report_id as string | undefined) ?? (meta.report_ids ? undefined : undefined)
-            const colourClass = ACTION_COLOURS[entry.action] ?? 'bg-gray-100 text-gray-600'
+            const defaultColour = ACTION_COLOURS[entry.action] ?? 'bg-gray-100 text-gray-600'
+            const colourClass = isSenior && (entry.action === 'admin_login' || entry.action === 'admin_logout')
+              ? 'bg-purple-100 text-purple-800'
+              : defaultColour
 
             const displayName = entry.hod_users?.hod_name ?? (meta.submitted_by as string) ?? (meta.edited_by as string) ?? 'Unknown'
             const adminTitle = entry.hod_users?.admin_title
@@ -176,7 +183,11 @@ export default async function ActivityPage({ searchParams }: PageProps) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-900">
                     {displayName}
-                    {adminTitle && <span className="text-gray-400 text-xs ml-1">({adminTitle})</span>}
+                    {adminTitle && (
+                      <span className={`text-xs ml-1 ${adminTitle === 'MD' ? 'text-purple-600 font-medium' : 'text-gray-400'}`}>
+                        ({adminTitle})
+                      </span>
+                    )}
                     {Boolean(meta.department_id) && Boolean(meta.report_date) && (
                       <span className="text-gray-400 ml-1">
                         &mdash; {String(meta.report_date)}

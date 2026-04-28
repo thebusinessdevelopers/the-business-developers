@@ -1,39 +1,49 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { validateSession, logActivity } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { logActivity } from '@/lib/auth'
+import { withAuth } from '@/lib/with-auth'
 import { createServerClient } from '@/lib/supabase-server'
 import { EditHistoryEntry } from '@/types'
+import { isWithinEditWindow } from '@/lib/submission-status'
 
-const SESSION_COOKIE = 'hod_session'
-const GUEST_COOKIE = 'hod_guest'
+function getUniqueMediaIds(photoData: unknown): string[] {
+  if (!Array.isArray(photoData)) return []
+  const ids = photoData
+    .map((p) => (p as Record<string, unknown>)?.id)
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+  return [...new Set(ids)]
+}
 
-export async function POST(request: NextRequest) {
-  try {
-    const cookieStore = await cookies()
-    const sessionToken = cookieStore.get(SESSION_COOKIE)?.value
-    const guestRaw = cookieStore.get(GUEST_COOKIE)?.value
+async function linkPendingMediaToReport(
+  supabase: ReturnType<typeof createServerClient>,
+  params: {
+    reportId: string
+    reportDate: string
+    departmentId: string
+    mediaIds: string[]
+    userId: string | null
+  }
+): Promise<string[]> {
+  const { reportId, reportDate, departmentId, mediaIds, userId } = params
+  if (mediaIds.length === 0) return []
 
-    let userId: string | null = null
-    let editorName: string | null = null
+  let query = supabase
+    .from('hod_report_media')
+    .update({ report_id: reportId })
+    .eq('department_id', departmentId)
+    .eq('report_date', reportDate)
+    .is('report_id', null)
+    .in('id', mediaIds)
 
-    if (sessionToken) {
-      const user = await validateSession(sessionToken)
-      if (!user) {
-        return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
-      }
-      userId = user.id
-      editorName = user.hod_name
-    } else if (guestRaw) {
-      try {
-        const guest = JSON.parse(guestRaw) as { slug: string; name: string; ts: number }
-        editorName = guest.name
-      } catch {
-        return NextResponse.json({ error: 'Invalid guest cookie' }, { status: 401 })
-      }
-    } else {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
+  if (userId) {
+    query = query.eq('uploaded_by_user_id', userId)
+  }
 
+  const { data, error } = await query.select('id')
+  if (error) throw error
+  return (data ?? []).map((row) => row.id as string)
+}
+
+export const POST = withAuth(async ({ user, userId, guest, request }) => {
     const body = await request.json()
     const { reportId, reportData, submittedBy } = body as {
       reportId: string
@@ -49,12 +59,30 @@ export async function POST(request: NextRequest) {
 
     const { data: existing } = await supabase
       .from('hod_daily_reports')
-      .select('id, report_data, edit_history, department_id, report_date')
+      .select('id, report_data, edit_history, department_id, report_date, submitted_by, submitted_by_user_id, hod_departments(slug)')
       .eq('id', reportId)
       .single()
 
     if (!existing) {
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+    }
+    const existingDept = existing.hod_departments as unknown as { slug?: string } | { slug?: string }[] | null
+    const existingDeptSlug = (Array.isArray(existingDept) ? existingDept[0]?.slug : existingDept?.slug) ?? null
+
+    if (user) {
+      if (user.role !== 'hod' || user.department_id !== existing.department_id) {
+        return NextResponse.json({ error: 'You are not allowed to edit this report' }, { status: 403 })
+      }
+    } else if (guest) {
+      if (!existingDeptSlug || guest.slug !== existingDeptSlug) {
+        return NextResponse.json({ error: 'You are not allowed to edit this report' }, { status: 403 })
+      }
+    } else {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
+    if (!isWithinEditWindow(existing.report_date as string)) {
+      return NextResponse.json({ error: 'Editing window has closed for this report.' }, { status: 403 })
     }
 
     const prevData = existing.report_data as Record<string, unknown>
@@ -69,24 +97,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const priorSubmittedBy = String(existing.submitted_by ?? '').trim()
+    const nextSubmittedBy = submittedBy.trim()
+    const submittedByChanged = priorSubmittedBy !== nextSubmittedBy
+    if (submittedByChanged) {
+      changes.push({
+        field: 'submitted_by',
+        old_value: priorSubmittedBy,
+        new_value: nextSubmittedBy,
+      })
+    }
+
     if (changes.length === 0) {
       return NextResponse.json({ reportId, noChanges: true })
     }
 
     const prevHistory = (existing.edit_history as EditHistoryEntry[] | null) ?? []
     const now = new Date().toISOString()
+    const editorName = user?.hod_name ?? guest?.name ?? submittedBy
     const newEntry: EditHistoryEntry = {
-      edited_by: editorName ?? submittedBy,
+      edited_by: editorName,
       edited_at: now,
       changes,
     }
+
+    const normalizedEditor = editorName.trim().toLowerCase()
+    const normalizedSubmittedBy = nextSubmittedBy.toLowerCase()
+    const submittedByUserId = submittedByChanged
+      ? (user && normalizedEditor === normalizedSubmittedBy ? user.id : null)
+      : existing.submitted_by_user_id
 
     const { error: updateError } = await supabase
       .from('hod_daily_reports')
       .update({
         report_data: reportData,
+        submitted_by: nextSubmittedBy,
+        submitted_by_user_id: submittedByUserId,
         edited_at: now,
-        last_edited_by: editorName ?? submittedBy,
+        last_edited_by: editorName,
         edit_history: [...prevHistory, newEntry],
         acknowledged_at: null,
         acknowledged_by: null,
@@ -100,18 +148,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Link any new photos
-    const photoData = reportData.photos
-    if (Array.isArray(photoData) && photoData.length > 0) {
-      const mediaIds = photoData
-        .map((p: Record<string, unknown>) => p.id)
-        .filter(Boolean) as string[]
-      if (mediaIds.length > 0) {
-        Promise.resolve(
-          supabase
-            .from('hod_report_media')
-            .update({ report_id: reportId })
-            .in('id', mediaIds)
-        ).catch(() => {})
+    let requestedMediaCount = 0
+    let linkedMediaCount = 0
+    const mediaIds = getUniqueMediaIds(reportData.photos)
+    requestedMediaCount = mediaIds.length
+    if (mediaIds.length > 0) {
+      try {
+        const linkedIds = await linkPendingMediaToReport(supabase, {
+          reportId,
+          reportDate: existing.report_date as string,
+          departmentId: existing.department_id as string,
+          mediaIds,
+          userId,
+        })
+        linkedMediaCount = linkedIds.length
+        if (linkedIds.length !== mediaIds.length) {
+          console.warn('Some edited-report media IDs were ignored by ownership/date guards', {
+            requested: mediaIds.length,
+            linked: linkedIds.length,
+            reportId,
+            departmentId: existing.department_id,
+          })
+        }
+      } catch (mediaErr) {
+        console.error('Edit report media link failed:', mediaErr)
       }
     }
 
@@ -119,18 +179,18 @@ export async function POST(request: NextRequest) {
       report_id: reportId,
       department_id: existing.department_id,
       report_date: existing.report_date,
-      edited_by: editorName ?? submittedBy,
+      edited_by: editorName,
+      submitted_by_changed: submittedByChanged,
+      submitted_by_old: submittedByChanged ? priorSubmittedBy : undefined,
+      submitted_by_new: submittedByChanged ? nextSubmittedBy : undefined,
+      submitted_by_user_id_policy: submittedByChanged
+        ? (submittedByUserId ? 'mapped_to_editor' : 'set_null_for_manual_override')
+        : 'preserved',
+      linked_media_count: linkedMediaCount,
+      ignored_media_count: Math.max(0, requestedMediaCount - linkedMediaCount),
       fields_changed: changes.map((c) => c.field),
       ip: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip'),
     }).catch(() => {})
 
     return NextResponse.json({ reportId })
-  } catch (err: unknown) {
-    const errObj = err as { message?: string } | null
-    console.error('Edit report error:', errObj)
-    return NextResponse.json(
-      { error: 'Something went wrong. Please try again.' },
-      { status: 500 }
-    )
-  }
-}
+}, { allowGuest: true })

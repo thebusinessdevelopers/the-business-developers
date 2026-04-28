@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createServerClient } from '@/lib/supabase-server'
 import { getFormBySlug } from '@/config/forms'
+import { getCurrentUser } from '@/lib/auth'
 import { getKampalaDateStr } from '@/lib/submission-status'
 import NewReportForm from './NewReportForm'
 
@@ -68,6 +69,8 @@ export default async function NewReportPage({ params, searchParams }: PageProps)
     }
   }
 
+  const user = await getCurrentUser()
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -104,6 +107,8 @@ export default async function NewReportPage({ params, searchParams }: PageProps)
           departmentSlug={slug}
           lockedDate={date}
           prefillData={prefillData}
+          currentUserId={user?.id ?? null}
+          currentUserName={user?.hod_name ?? null}
         />
       </div>
     </main>

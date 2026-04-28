@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import MentionInput from '@hod/shared/components/MentionInput'
+import type { MentionData, MentionUserGroup } from '@hod/shared/types'
 
 interface AcknowledgeButtonProps {
   reportId: string
@@ -36,8 +38,21 @@ export default function AcknowledgeButton({
   const [selectedReviewer, setSelectedReviewer] = useState('')
   const [customReviewer, setCustomReviewer] = useState('')
   const [comments, setComments] = useState('')
+  const [mentions, setMentions] = useState<MentionData[]>([])
+  const [userGroups, setUserGroups] = useState<MentionUserGroup[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (showForm && userGroups.length === 0) {
+      fetch('/api/mention-users')
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.groups) setUserGroups(data.groups)
+        })
+        .catch(() => {})
+    }
+  }, [showForm, userGroups.length])
 
   const reviewerName = selectedReviewer === '__other__' ? customReviewer.trim() : selectedReviewer
 
@@ -57,6 +72,7 @@ export default function AcknowledgeButton({
           reportId,
           reviewedBy: reviewerName,
           reviewComments: comments.trim() || null,
+          mentions: mentions.length > 0 ? mentions : undefined,
         }),
       })
 
@@ -139,13 +155,17 @@ export default function AcknowledgeButton({
       </div>
 
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-gray-600">Comments (optional)</label>
-        <textarea
+        <label className="block text-xs font-medium text-gray-600">Comments (optional — use @ to mention someone)</label>
+        <MentionInput
           value={comments}
-          onChange={(e) => setComments(e.target.value)}
-          placeholder="Any notes on the report..."
+          mentions={mentions}
+          onChange={(v, m) => {
+            setComments(v)
+            setMentions(m)
+          }}
+          userGroups={userGroups}
+          placeholder="Any notes on the report… use @ to mention someone"
           rows={2}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ziwa-500"
         />
       </div>
 

@@ -7,6 +7,12 @@ import { getDeadlineBadge, isWithinEditWindow, formatDateTimeKampala, type Deadl
 import RoomGrid, { type RoomsValue } from './RoomGrid'
 import FieldRenderer from './form/FieldRenderer'
 import { validateForm } from './form/FormValidation'
+import { isSectionMarkedNA } from '@hod/shared/lib/na-markers'
+
+interface EntryMediaItem {
+  signed_url?: string
+  hod_description: string
+}
 
 interface FormRendererProps {
   config: DepartmentFormConfig
@@ -20,6 +26,7 @@ interface FormRendererProps {
   initialReportDate?: string
   editorName?: string
   readOnly?: boolean
+  entryMediaMap?: Record<string, EntryMediaItem[]>
 }
 
 function isMonday(dateStr: string): boolean {
@@ -50,6 +57,7 @@ export default function FormRenderer({
   initialReportDate,
   editorName,
   readOnly = false,
+  entryMediaMap,
 }: FormRendererProps) {
   const now = new Date()
   const today = now.toISOString().split('T')[0]
@@ -258,6 +266,7 @@ export default function FormRenderer({
           body: JSON.stringify({
             reportId: effectiveEditReportId,
             reportData: values,
+            submittedBy,
             editorName: editorName ?? submittedBy ?? 'Admin',
           }),
         })
@@ -379,11 +388,16 @@ export default function FormRenderer({
   if (readOnly) {
     return (
       <div className="space-y-8">
-        {config.sections.map((section) => (
+        {config.sections.map((section) => {
+          const isNA = isSectionMarkedNA(section, values)
+          return (
           <div key={section.title} className="space-y-4 mb-8">
             <h2 className="text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">
               {section.title}
             </h2>
+            {isNA ? (
+              <p className="text-sm text-gray-400 italic">Nothing to report — marked N/A</p>
+            ) : (
             <div className="space-y-4">
               {section.fields.map((field) => {
                 const val = values[field.name]
@@ -447,9 +461,13 @@ export default function FormRenderer({
                     <div key={field.name}>
                       <p className="text-sm font-medium text-gray-700 mb-2">{field.label}</p>
                       <div className="space-y-2">
-                        {(val as Record<string, unknown>[]).map((row, idx) => (
+                        {(val as Record<string, unknown>[]).map((row, idx) => {
+                          const ek = `${field.name}_${idx}`
+                          const entryPhotos = entryMediaMap?.[ek]
+                          return (
                           <div key={idx} className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
                             {field.sub_fields?.map((sub) => {
+                              if (sub.type === 'photo') return null
                               const sv = row[sub.name]
                               if (sv === undefined || sv === null || sv === '') return null
                               return (
@@ -459,8 +477,24 @@ export default function FormRenderer({
                                 </p>
                               )
                             })}
+                            {entryPhotos && entryPhotos.length > 0 && (
+                              <div className="flex gap-2 mt-2 pt-2 border-t border-gray-200">
+                                {entryPhotos.map((ep, pi) => (
+                                  ep.signed_url ? (
+                                    <img key={pi} src={ep.signed_url} alt={ep.hod_description} className="w-16 h-16 object-cover rounded-md border border-gray-200" />
+                                  ) : (
+                                    <div key={pi} className="w-16 h-16 bg-gray-200 rounded-md flex items-center justify-center">
+                                      <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                      </svg>
+                                    </div>
+                                  )
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )
@@ -483,8 +517,10 @@ export default function FormRenderer({
                 )
               })}
             </div>
+            )}
           </div>
-        ))}
+          )
+        })}
       </div>
     )
   }

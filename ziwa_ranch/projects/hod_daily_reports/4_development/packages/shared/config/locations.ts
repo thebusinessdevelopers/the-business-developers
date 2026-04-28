@@ -18,6 +18,7 @@ export const ZONES = [
 
 export const GATES = [
   'Main Gate',
+  'Kyamukama Gate',
   'Kamira Gate',
   'Sajjabi 1 Gate',
   'Sajjabi 2 Gate',

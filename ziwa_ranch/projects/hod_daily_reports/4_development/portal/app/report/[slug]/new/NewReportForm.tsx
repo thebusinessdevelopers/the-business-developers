@@ -11,6 +11,8 @@ interface NewReportFormProps {
   departmentSlug: string
   lockedDate: string
   prefillData?: Record<string, unknown> | null
+  currentUserId: string | null
+  currentUserName: string | null
 }
 
 export default function NewReportForm({
@@ -19,6 +21,8 @@ export default function NewReportForm({
   departmentSlug,
   lockedDate,
   prefillData,
+  currentUserId,
+  currentUserName,
 }: NewReportFormProps) {
   const [submitted, setSubmitted] = useState(false)
   const [lastReportId, setLastReportId] = useState<string | null>(null)
@@ -47,6 +51,14 @@ export default function NewReportForm({
         <div className="flex flex-col gap-3 items-center mt-6">
           {lastReportId && (
             <Link
+              href={`/report/${departmentSlug}/view/${lastReportId}`}
+              className="text-sm text-ziwa-600 font-medium hover:text-ziwa-700 border border-ziwa-300 rounded-lg px-5 py-2.5 hover:bg-ziwa-50 transition-colors"
+            >
+              View this report
+            </Link>
+          )}
+          {lastReportId && (
+            <Link
               href={`/report/${departmentSlug}/edit/${lastReportId}`}
               className="text-sm text-amber-600 font-medium hover:text-amber-700 border border-amber-300 rounded-lg px-5 py-2.5 hover:bg-amber-50 transition-colors"
             >
@@ -68,6 +80,7 @@ export default function NewReportForm({
     <FormRenderer
       config={config}
       departmentId={departmentId}
+      draftScope={currentUserId ?? 'guest'}
       onSuccess={(reportId) => {
         setLastReportId(reportId ?? null)
         setSubmitted(true)
@@ -75,6 +88,8 @@ export default function NewReportForm({
       lockedDate={lockedDate}
       stockProjection={stockProjection}
       initialValues={prefillData ?? undefined}
+      prefillValues={prefillData ?? undefined}
+      currentUserName={currentUserName ?? undefined}
     />
   )
 }

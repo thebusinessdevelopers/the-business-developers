@@ -1,25 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { validateSession, verifyPassword, hashPassword, logActivity } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { verifyPassword, hashPassword, logActivity } from '@/lib/auth'
+import { withAuth } from '@/lib/with-auth'
 import { createServerClient } from '@/lib/supabase-server'
 
-const SESSION_COOKIE = 'hod_session'
-
-export async function POST(request: NextRequest) {
-  try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get(SESSION_COOKIE)?.value
-
-    if (!token) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-
-    const user = await validateSession(token)
+export const POST = withAuth(async ({ user, request }) => {
     if (!user) {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
+      return NextResponse.json({ error: 'Session required' }, { status: 401 })
     }
 
-    const body = await request.json()
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    }
+
     const { currentPassword, newPassword } = body as {
       currentPassword: string
       newPassword: string
@@ -29,8 +24,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Both current and new password are required' }, { status: 400 })
     }
 
-    if (newPassword.length < 4) {
-      return NextResponse.json({ error: 'New password must be at least 4 characters' }, { status: 400 })
+    if (newPassword.length < 8) {
+      return NextResponse.json({ error: 'New password must be at least 8 characters' }, { status: 400 })
     }
 
     if (currentPassword === newPassword) {
@@ -58,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     const { error: updateError } = await supabase
       .from('hod_users')
-      .update({ password_hash: newHash })
+      .update({ password_hash: newHash, password_display: newPassword })
       .eq('id', user.id)
 
     if (updateError) {
@@ -68,14 +63,9 @@ export async function POST(request: NextRequest) {
 
     logActivity(user.id, 'password_changed', {
       ip: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip'),
-    }).catch(() => {})
+    }).catch((err) => {
+      console.error('Password change activity log failed:', err)
+    })
 
     return NextResponse.json({ success: true })
-  } catch (err: unknown) {
-    console.error('Change password error:', err)
-    return NextResponse.json(
-      { error: 'Something went wrong. Please try again.' },
-      { status: 500 }
-    )
-  }
-}
+})

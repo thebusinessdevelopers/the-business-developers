@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
 import { getHfClient } from '@/lib/hf'
+import { isInternalRequest } from '@hod/shared/lib/internal-route-auth'
 
 async function analyseImage(
   imageBlob: Blob,
@@ -44,9 +45,15 @@ async function analyseImage(
 }
 
 export async function POST(request: NextRequest) {
+  if (!isInternalRequest(request)) {
+    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  }
+
+  let mediaId: string | null = null
   try {
     const body = await request.json()
     const { media_id } = body as { media_id: string }
+    mediaId = media_id
     if (!media_id) {
       return NextResponse.json({ error: 'media_id required' }, { status: 400 })
     }
@@ -63,33 +70,71 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Media not found' }, { status: 404 })
     }
 
+    await supabase
+      .from('hod_report_media')
+      .update({ ai_status: 'processing', ai_error_message: null })
+      .eq('id', media_id)
+
     const { data: fileData } = await supabase.storage
       .from('hod-report-media')
       .download(media.storage_path)
 
     if (!fileData) {
+      await supabase
+        .from('hod_report_media')
+        .update({ ai_status: 'failed', ai_error_message: 'Could not download image from storage' })
+        .eq('id', media_id)
       return NextResponse.json({ error: 'Could not download image' }, { status: 500 })
     }
 
     const imageBlob = new Blob([fileData], { type: media.mime_type || 'image/jpeg' })
 
-    const result = await analyseImage(
-      imageBlob,
-      media.hod_description ?? '',
-      media.context_category ?? ''
-    )
+    const hf = getHfClient()
+    if (!hf) {
+      await supabase
+        .from('hod_report_media')
+        .update({
+          ai_status: 'failed',
+          ai_error_message: 'HF token not configured',
+        })
+        .eq('id', media_id)
+      return NextResponse.json({ error: 'HF not configured' }, { status: 503 })
+    }
 
-    await supabase
+    const result = await analyseImage(imageBlob, media.hod_description ?? '', media.context_category ?? '')
+
+    const hasContent = (result.ai_description && result.ai_description !== media.hod_description) || result.tags.length > 1
+
+    const { error: updateError } = await supabase
       .from('hod_report_media')
       .update({
         ai_description: result.ai_description || null,
         ai_tags: result.tags.length > 0 ? result.tags : null,
+        ai_status: hasContent ? 'complete' : 'skipped',
+        ai_error_message: null,
       })
       .eq('id', media_id)
+    if (updateError) {
+      return NextResponse.json({ error: 'Failed to persist AI result' }, { status: 500 })
+    }
 
     return NextResponse.json({ processed: true, media_id })
   } catch (err) {
-    console.error('Process media error (non-blocking):', err)
+    console.error('Process media error:', err)
+    const errorMessage = err instanceof Error ? err.message : 'Unknown processing error'
+
+    try {
+      if (mediaId) {
+        const supabase = createServerClient()
+        await supabase
+          .from('hod_report_media')
+          .update({ ai_status: 'failed', ai_error_message: errorMessage.slice(0, 500) })
+          .eq('id', mediaId)
+      }
+    } catch {
+      // Best effort — the status update itself failed
+    }
+
     return NextResponse.json({ error: 'Processing failed' }, { status: 500 })
   }
 }

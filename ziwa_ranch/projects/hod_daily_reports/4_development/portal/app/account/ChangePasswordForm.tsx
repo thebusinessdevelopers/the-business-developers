@@ -25,8 +25,8 @@ export default function ChangePasswordForm() {
       return
     }
 
-    if (newPassword.length < 4) {
-      setError('New password must be at least 4 characters.')
+    if (newPassword.length < 8) {
+      setError('New password must be at least 8 characters.')
       return
     }
 
@@ -65,6 +65,7 @@ export default function ChangePasswordForm() {
           type="password"
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)}
+          required
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ziwa-500 focus:border-transparent"
           autoComplete="current-password"
         />
@@ -76,6 +77,8 @@ export default function ChangePasswordForm() {
           type="password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
+          required
+          minLength={8}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ziwa-500 focus:border-transparent"
           autoComplete="new-password"
         />
@@ -87,10 +90,16 @@ export default function ChangePasswordForm() {
           type="password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          minLength={8}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ziwa-500 focus:border-transparent"
           autoComplete="new-password"
         />
       </div>
+
+      <p className="text-sm text-gray-500">
+        Support cannot look up your current password. If you forget it, ask a senior admin to set a temporary one for you.
+      </p>
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>

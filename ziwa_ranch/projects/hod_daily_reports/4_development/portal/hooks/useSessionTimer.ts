@@ -1,72 +1,96 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useRef } from 'react'
+import { endClientSession } from '@/lib/session-client'
 
 interface SessionTimerConfig {
   autoLogoutEnabled: boolean
-  logoutTime: string
   idleTimeoutMinutes: number
 }
 
-export function useSessionTimer(config: SessionTimerConfig) {
-  const router = useRouter()
-  const lastActivityRef = useRef(Date.now())
+interface SessionStatusResponse {
+  valid: boolean
+  reason?: string
+}
+
+type SessionEndReason = 'idle_timeout' | 'invalid_session'
+
+export function useSessionTimer(config: SessionTimerConfig): void {
+  const lastActivityRef = useRef(0)
   const loggingOutRef = useRef(false)
 
-  const logout = useCallback(async () => {
+  useEffect(() => {
+    if (lastActivityRef.current === 0) lastActivityRef.current = Date.now()
+  }, [])
+
+  const logout = useCallback(async (reason: SessionEndReason) => {
     if (loggingOutRef.current) return
     loggingOutRef.current = true
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' })
-    } finally {
-      window.location.href = '/login'
-    }
+
+    await endClientSession({
+      source: reason === 'invalid_session' ? 'invalid_session' : 'auto_timer',
+      reason,
+    })
   }, [])
 
   useEffect(() => {
-    if (!config.autoLogoutEnabled) return
-
     const updateActivity = () => {
       lastActivityRef.current = Date.now()
+    }
+
+    const checkSession = async () => {
+      if (loggingOutRef.current) return
+
+      try {
+        const response = await fetch('/api/auth/session', { cache: 'no-store' })
+        if (!response.ok) return
+        const data = await response.json().catch(
+          (): SessionStatusResponse | null => null
+        )
+        if (!data) return
+
+        if (!data.valid) {
+          if (data.reason === 'session_check_failed') return
+          await logout('invalid_session')
+          return
+        }
+      } catch {
+      }
+    }
+
+    const checkIdleTimeout = () => {
+      if (loggingOutRef.current) return
+      if (!config.autoLogoutEnabled) return
+
+      const idleMs = Date.now() - lastActivityRef.current
+      if (idleMs >= config.idleTimeoutMinutes * 60 * 1000) {
+        void logout('idle_timeout')
+      }
+    }
+
+    const handleSurfaceChange = () => {
+      lastActivityRef.current = Date.now()
+      checkIdleTimeout()
+      if (!document.hidden) {
+        void checkSession()
+      }
     }
 
     window.addEventListener('mousemove', updateActivity, { passive: true })
     window.addEventListener('keydown', updateActivity, { passive: true })
     window.addEventListener('touchstart', updateActivity, { passive: true })
     window.addEventListener('click', updateActivity, { passive: true })
+    window.addEventListener('scroll', updateActivity, { passive: true })
+    window.addEventListener('focus', handleSurfaceChange)
+    window.addEventListener('blur', handleSurfaceChange)
+    document.addEventListener('visibilitychange', handleSurfaceChange)
 
-    const checkInterval = setInterval(() => {
-      if (loggingOutRef.current) return
+    checkIdleTimeout()
+    void checkSession()
 
-      const idleMs = Date.now() - lastActivityRef.current
-      if (idleMs >= config.idleTimeoutMinutes * 60 * 1000) {
-        logout()
-        return
-      }
-
-      const kampalaTime = new Date().toLocaleString('en-GB', {
-        timeZone: 'Africa/Kampala',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-      if (kampalaTime >= config.logoutTime) {
-        logout()
-      }
-    }, 60_000)
-
-    const pollInterval = setInterval(async () => {
-      if (loggingOutRef.current) return
-      try {
-        const res = await fetch('/api/auth/session')
-        const data = await res.json()
-        if (!data.valid) {
-          window.location.href = '/login'
-        }
-      } catch {
-        // Offline — don't force logout, connectivity resilience handles this
-      }
+    const checkInterval = setInterval(checkIdleTimeout, 60_000)
+    const pollInterval = setInterval(() => {
+      void checkSession()
     }, 5 * 60 * 1000)
 
     return () => {
@@ -74,8 +98,12 @@ export function useSessionTimer(config: SessionTimerConfig) {
       window.removeEventListener('keydown', updateActivity)
       window.removeEventListener('touchstart', updateActivity)
       window.removeEventListener('click', updateActivity)
+      window.removeEventListener('scroll', updateActivity)
+      window.removeEventListener('focus', handleSurfaceChange)
+      window.removeEventListener('blur', handleSurfaceChange)
+      document.removeEventListener('visibilitychange', handleSurfaceChange)
       clearInterval(checkInterval)
       clearInterval(pollInterval)
     }
-  }, [config.autoLogoutEnabled, config.idleTimeoutMinutes, config.logoutTime, logout, router])
+  }, [config.autoLogoutEnabled, config.idleTimeoutMinutes, logout])
 }

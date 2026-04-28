@@ -28,7 +28,6 @@ export const LOGIN_DEPARTMENTS: LoginDepartment[] = [
     { username: 'kitchen.safari', displayName: 'Safari' },
   ]},
   { label: 'Housekeeping', slug: 'housekeeping', users: [
-    { username: 'housekeeping.elly', displayName: 'Elly' },
     { username: 'housekeeping.anita', displayName: 'Anita' },
   ]},
   { label: 'Security', slug: 'security', users: [
@@ -63,7 +62,8 @@ export const LOGIN_DEPARTMENTS: LoginDepartment[] = [
   ]},
   { label: 'Wildlife', slug: 'wildlife', users: [
     { username: 'wildlife.martine', displayName: 'Martine' },
-    { username: 'wildlife.wycliff', displayName: 'Wycliff' },
+    { username: 'wildlife.wycliffe', displayName: 'Wycliffe' },
+    { username: 'wildlife.samuel', displayName: 'Samuel' },
   ]},
   { label: 'Craft Shop', slug: 'craft-shop', users: [
     { username: 'craftshop.halima', displayName: 'Halima' },
@@ -73,5 +73,6 @@ export const LOGIN_DEPARTMENTS: LoginDepartment[] = [
     { username: 'headoffice.florence', displayName: 'Florence' },
     { username: 'headoffice.julie', displayName: 'Julie' },
     { username: 'headoffice.isaac', displayName: 'Isaac' },
+    { username: 'headoffice.faith', displayName: 'Faith' },
   ]},
 ]

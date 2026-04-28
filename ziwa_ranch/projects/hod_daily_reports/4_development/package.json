@@ -1,9 +1,7 @@
 {
   "private": true,
-  "workspaces": ["portal", "admin-portal", "packages/*"],
-  "devDependencies": {
-    "@types/react": "*",
-    "@types/react-dom": "*",
-    "@types/node": "*"
-  }
+  "scripts": {
+    "v26:doc": "node scripts/v26-doc-workflow.mjs"
+  },
+  "workspaces": ["portal", "admin-portal", "packages/*"]
 }

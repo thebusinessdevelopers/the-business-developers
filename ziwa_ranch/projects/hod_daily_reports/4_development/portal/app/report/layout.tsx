@@ -15,7 +15,6 @@ export default async function ReportLayout({
     return (
       <SessionGuard
         autoLogoutEnabled={user.auto_logout_enabled}
-        logoutTime={user.logout_time}
         idleTimeoutMinutes={user.idle_timeout_minutes}
       >
         <ConnectivityBanner />

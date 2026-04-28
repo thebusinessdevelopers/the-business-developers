@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase-server'
-import { getAdminUser, logAdminActivity } from '@/lib/admin-auth'
+import { getAdminUser, hasAdminCapability, logAdminActivity } from '@/lib/admin-auth'
 import { getFormBySlug, LEGACY_HOUSEKEEPING_CONFIG } from '@/config/forms'
 import { getSubmissionStatus, getStatusLabel, getStatusBadgeClasses } from '@/lib/submission-status'
 import { EditHistoryEntry } from '@/types'
@@ -12,6 +12,8 @@ import FormRenderer from '@/components/FormRenderer'
 import PhotoGallery, { type MediaItem } from '@/components/PhotoGallery'
 import AcknowledgeButton from './AcknowledgeButton'
 import DeleteReportButton from './DeleteReportButton'
+import AdminReportThread from './AdminReportThread'
+import ReportComparison from './ReportComparison'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -19,6 +21,7 @@ interface PageProps {
 
 interface ReportData {
   id: string
+  department_id: string
   submitted_by: string
   report_date: string
   submitted_at: string
@@ -59,7 +62,7 @@ export default async function ReportDetailPage({ params }: PageProps) {
 
   const { data: report } = await supabase
     .from('hod_daily_reports')
-    .select('id, submitted_by, report_date, submitted_at, report_data, edit_history, edited_at, last_edited_by, acknowledged_at, acknowledged_by, review_comments, hod_departments(name, slug)')
+    .select('id, department_id, submitted_by, report_date, submitted_at, report_data, edit_history, edited_at, last_edited_by, acknowledged_at, acknowledged_by, review_comments, hod_departments(name, slug)')
     .eq('id', id)
     .single()
 
@@ -67,27 +70,56 @@ export default async function ReportDetailPage({ params }: PageProps) {
 
   const { data: reportMedia } = await supabase
     .from('hod_report_media')
-    .select('id, storage_path, generated_filename, hod_description, ai_description, ai_tags, context_category, created_at')
+    .select('id, storage_path, generated_filename, hod_description, ai_description, ai_tags, context_category, created_at, google_drive_url, thumbnail_path, entry_key')
     .eq('report_id', id)
     .order('created_at')
 
-  const mediaWithUrls: MediaItem[] = []
-  for (const item of reportMedia ?? []) {
-    const { data: urlData } = await supabase.storage
-      .from('hod-report-media')
-      .createSignedUrl(item.storage_path, 3600)
-    mediaWithUrls.push({
-      ...item,
-      signed_url: urlData?.signedUrl ?? undefined,
-    } as MediaItem)
-  }
+  const items = reportMedia ?? []
 
-  const media = mediaWithUrls
+  const thumbPaths = items.map((item) => {
+    const tp = (item as Record<string, unknown>).thumbnail_path as string | null
+    return tp ?? item.storage_path
+  })
+  const fullNeeded = items.map((item) => !(item as Record<string, unknown>).thumbnail_path)
+  const fullPaths = items.filter((_, i) => fullNeeded[i]).map((item) => item.storage_path)
+
+  const [thumbBatch, fullBatch] = await Promise.all([
+    thumbPaths.length > 0
+      ? supabase.storage.from('hod-report-media').createSignedUrls(thumbPaths, 3600)
+      : { data: [] as { signedUrl: string }[] },
+    fullPaths.length > 0
+      ? supabase.storage.from('hod-report-media').createSignedUrls(fullPaths, 3600)
+      : { data: [] as { signedUrl: string }[] },
+  ])
+
+  let fullIdx = 0
+  const allMedia: MediaItem[] = items.map((item, i) => {
+    let fullUrl: string | undefined
+    if (fullNeeded[i]) {
+      fullUrl = fullBatch.data?.[fullIdx]?.signedUrl ?? undefined
+      fullIdx++
+    }
+    return {
+      ...item,
+      signed_url: thumbBatch.data?.[i]?.signedUrl ?? undefined,
+      full_signed_url: fullUrl,
+    } as MediaItem
+  })
+
+  const media = allMedia.filter((m) => !(m as unknown as { entry_key?: string }).entry_key)
+  const entryMediaMap: Record<string, { signed_url?: string; hod_description: string }[]> = {}
+  for (const m of allMedia) {
+    const ek = (m as unknown as { entry_key?: string }).entry_key ?? null
+    if (!ek) continue
+    if (!entryMediaMap[ek]) entryMediaMap[ek] = []
+    entryMediaMap[ek].push({ signed_url: m.signed_url, hod_description: m.hod_description })
+  }
 
   const r = report as unknown as ReportData
   const status = getSubmissionStatus(r.submitted_at, r.report_date)
 
   const admin = await getAdminUser()
+  const canManage = Boolean(admin && hasAdminCapability(admin, 'report_manage'))
   if (admin) {
     logAdminActivity(admin.id, 'report_viewed', {
       report_id: r.id,
@@ -125,21 +157,23 @@ export default async function ReportDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-100">
-          <Link
-            href={`/reports/${r.id}/edit`}
-            className="text-xs text-ziwa-600 hover:text-ziwa-700 font-medium border border-ziwa-300 rounded-md px-3 py-1.5 hover:bg-ziwa-50 transition-colors"
-          >
-            Edit report
-          </Link>
-          <AcknowledgeButton
-            reportId={r.id}
-            acknowledgedAt={r.acknowledged_at}
-            acknowledgedBy={r.acknowledged_by}
-            reviewComments={r.review_comments}
-          />
-          <DeleteReportButton reportId={r.id} departmentName={r.hod_departments.name} />
-        </div>
+        {canManage && (
+          <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-100">
+            <Link
+              href={`/reports/${r.id}/edit`}
+              className="text-xs text-ziwa-600 hover:text-ziwa-700 font-medium border border-ziwa-300 rounded-md px-3 py-1.5 hover:bg-ziwa-50 transition-colors"
+            >
+              Edit report
+            </Link>
+            <AcknowledgeButton
+              reportId={r.id}
+              acknowledgedAt={r.acknowledged_at}
+              acknowledgedBy={r.acknowledged_by}
+              reviewComments={r.review_comments}
+            />
+            <DeleteReportButton reportId={r.id} departmentName={r.hod_departments.name} />
+          </div>
+        )}
       </div>
 
       {formConfig ? (
@@ -147,6 +181,7 @@ export default async function ReportDetailPage({ params }: PageProps) {
           config={formConfig}
           readOnly
           initialValues={r.report_data}
+          entryMediaMap={entryMediaMap}
         />
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -163,7 +198,25 @@ export default async function ReportDetailPage({ params }: PageProps) {
         </div>
       )}
 
+      {formConfig && (
+        <ReportComparison
+          currentReport={{
+            report_data: r.report_data,
+            report_date: r.report_date,
+            department_id: r.department_id,
+          }}
+          formConfig={formConfig}
+        />
+      )}
+
       <EditHistory history={r.edit_history ?? []} />
+
+      {admin && (
+        <div className="mt-6">
+          <h2 className="text-base font-semibold text-gray-800 mb-3">Discussion</h2>
+          <AdminReportThread reportId={r.id} currentUserId={admin.id} readOnly={!canManage} />
+        </div>
+      )}
     </div>
   )
 }

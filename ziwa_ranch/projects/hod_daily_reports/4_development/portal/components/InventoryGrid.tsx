@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { fuzzyMatch, toTitleCase, findSimilarItems, type SimilarItem } from '@hod/shared/lib/fuzzy-search'
+import { STANDARD_UNITS, correctItemName, normaliseUnit } from '@hod/shared/config/stock'
 
 interface InventoryItem {
   name: string
@@ -59,14 +61,37 @@ export default function InventoryGrid({
   const [showAddNew, setShowAddNew] = useState(false)
   const [newItemName, setNewItemName] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const [similarSuggestions, setSimilarSuggestions] = useState<SimilarItem[]>([])
+  const [showSimilarPopup, setShowSimilarPopup] = useState(false)
 
   useEffect(() => {
+    const cacheKey = `inventory:${departmentSlug}:${category}`
+    const CACHE_TTL = 30 * 60 * 1000
+
+    const applyCached = () => {
+      try {
+        const raw = localStorage.getItem(cacheKey)
+        if (raw) {
+          const { data, ts } = JSON.parse(raw)
+          if (Date.now() - ts < CACHE_TTL && data.items) {
+            setLibraryItems(data.items)
+            if (data.previousQuantities) setPreviousQty(data.previousQuantities)
+            setLoaded(true)
+          }
+        }
+      } catch { /* ignore corrupt cache */ }
+    }
+    requestAnimationFrame(applyCached)
+
     fetch(`/api/inventory-items/${departmentSlug}?category=${encodeURIComponent(category)}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.items) setLibraryItems(data.items)
         if (data.previousQuantities) setPreviousQty(data.previousQuantities)
         setLoaded(true)
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }))
+        } catch { /* quota exceeded */ }
       })
       .catch(() => setLoaded(true))
   }, [departmentSlug, category])
@@ -101,8 +126,7 @@ export default function InventoryGrid({
 
   const filtered = useMemo(() => {
     if (!search.trim()) return allItems
-    const q = search.toLowerCase()
-    return allItems.filter((i) => i.name.toLowerCase().includes(q))
+    return allItems.filter((i) => fuzzyMatch(search, i.name))
   }, [allItems, search])
 
   const activeCount = value.filter((v) => v.item && (typeof v.quantity === 'number' && v.quantity > 0)).length
@@ -118,10 +142,11 @@ export default function InventoryGrid({
       onChange(updated)
     } else {
       const prev = previousQty[key]
+      const rawUnit = defaultUnit || prev?.unit || ''
       const newEntry: ActiveItem = {
         item: itemName,
         quantity: '',
-        unit: defaultUnit || prev?.unit || '',
+        unit: normaliseUnit(rawUnit) || rawUnit,
         cost_per_unit: defaultCost ?? prev?.cost_per_unit ?? '',
       }
       for (const ef of extraFields) {
@@ -151,17 +176,29 @@ export default function InventoryGrid({
     onChange(updated)
   }
 
-  function addNewItem() {
-    if (!newItemName.trim() || readOnly) return
-    const name = newItemName.trim()
-    if (activeMap.has(name.toLowerCase())) {
+  const checkSimilarity = useCallback((name: string) => {
+    const existingNames = allItems.map((i) => i.name)
+    const similar = findSimilarItems(name, existingNames)
+    setSimilarSuggestions(similar)
+    return similar.length > 0
+  }, [allItems])
+
+  function normaliseName(raw: string): string {
+    return toTitleCase(correctItemName(raw))
+  }
+
+  function confirmAddItem(name: string) {
+    const normalised = normaliseName(name)
+    if (activeMap.has(normalised.toLowerCase())) {
       setNewItemName('')
       setShowAddNew(false)
+      setShowSimilarPopup(false)
+      setSimilarSuggestions([])
       return
     }
 
     const newEntry: ActiveItem = {
-      item: name,
+      item: normalised,
       quantity: '',
       unit: '',
       cost_per_unit: '',
@@ -172,6 +209,23 @@ export default function InventoryGrid({
     onChange([...value, newEntry])
     setNewItemName('')
     setShowAddNew(false)
+    setShowSimilarPopup(false)
+    setSimilarSuggestions([])
+  }
+
+  function addNewItem() {
+    if (!newItemName.trim() || readOnly) return
+    const name = newItemName.trim()
+    if (activeMap.has(name.toLowerCase())) {
+      setNewItemName('')
+      setShowAddNew(false)
+      return
+    }
+    if (checkSimilarity(name)) {
+      setShowSimilarPopup(true)
+      return
+    }
+    confirmAddItem(name)
   }
 
   const runningTotal = showCost
@@ -234,7 +288,7 @@ export default function InventoryGrid({
       {!loaded ? (
         <p className="text-sm text-gray-400">Loading items...</p>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {filtered.map((item) => {
             const key = item.name.toLowerCase()
             const idx = activeMap.get(key)
@@ -320,13 +374,16 @@ export default function InventoryGrid({
                     </div>
 
                     {/* Unit */}
-                    <input
-                      type="text"
+                    <select
                       value={activeData.unit}
                       onChange={(e) => updateField(key, 'unit', e.target.value)}
-                      placeholder="Unit (e.g. kg)"
-                      className="w-full rounded-md border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ziwa-500"
-                    />
+                      className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ziwa-500 bg-white"
+                    >
+                      <option value="">Select unit</option>
+                      {STANDARD_UNITS.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
 
                     {/* Cost */}
                     {showCost && (
@@ -381,31 +438,68 @@ export default function InventoryGrid({
 
       {/* Add new item */}
       {showAddNew ? (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newItemName}
-            onChange={(e) => setNewItemName(e.target.value)}
-            placeholder="New item name"
-            className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ziwa-500"
-            autoFocus
-            onKeyDown={(e) => e.key === 'Enter' && addNewItem()}
-          />
-          <button
-            type="button"
-            onClick={addNewItem}
-            disabled={!newItemName.trim()}
-            className="bg-ziwa-500 hover:bg-ziwa-600 disabled:bg-ziwa-300 text-white font-medium px-3 py-1.5 rounded-md text-sm transition-colors"
-          >
-            Add
-          </button>
-          <button
-            type="button"
-            onClick={() => { setShowAddNew(false); setNewItemName('') }}
-            className="text-gray-500 hover:text-gray-700 text-sm"
-          >
-            Cancel
-          </button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newItemName}
+              onChange={(e) => {
+                setNewItemName(e.target.value)
+                setShowSimilarPopup(false)
+                setSimilarSuggestions([])
+              }}
+              placeholder="New item name"
+              className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ziwa-500"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && addNewItem()}
+            />
+            <button
+              type="button"
+              onClick={addNewItem}
+              disabled={!newItemName.trim()}
+              className="bg-ziwa-500 hover:bg-ziwa-600 disabled:bg-ziwa-300 text-white font-medium px-3 py-1.5 rounded-md text-sm transition-colors"
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowAddNew(false); setNewItemName(''); setShowSimilarPopup(false); setSimilarSuggestions([]) }}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+
+          {showSimilarPopup && similarSuggestions.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+              <p className="text-sm font-medium text-amber-800">Did you mean one of these?</p>
+              <div className="space-y-1">
+                {similarSuggestions.map((s) => (
+                  <button
+                    key={s.name}
+                    type="button"
+                    onClick={() => {
+                      toggleItem(s.name, allItems.find((i) => i.name === s.name)?.unit ?? '', allItems.find((i) => i.name === s.name)?.cost_per_unit ?? null)
+                      setShowSimilarPopup(false)
+                      setSimilarSuggestions([])
+                      setNewItemName('')
+                      setShowAddNew(false)
+                    }}
+                    className="block w-full text-left text-sm text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded px-2 py-1 transition-colors"
+                  >
+                    {s.name} <span className="text-xs text-amber-500">({Math.round(s.score * 100)}% match)</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => confirmAddItem(newItemName)}
+                className="text-xs text-gray-500 hover:text-gray-700 mt-1"
+              >
+                No, add &ldquo;{toTitleCase(newItemName)}&rdquo; as new item
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <button

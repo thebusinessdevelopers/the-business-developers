@@ -51,7 +51,16 @@ function formatTime(isoStr: string): string {
   })
 }
 
-export default function ReportsTable({ reports }: { reports: ReportForTable[] }) {
+export default function ReportsTable({
+  reports,
+  unreadThreadReportIds = [],
+  canManage = true,
+}: {
+  reports: ReportForTable[]
+  unreadThreadReportIds?: string[]
+  canManage?: boolean
+}) {
+  const unreadThreadSet = new Set(unreadThreadReportIds)
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showBatchForm, setShowBatchForm] = useState(false)
@@ -61,7 +70,7 @@ export default function ReportsTable({ reports }: { reports: ReportForTable[] })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const unreviewedIds = reports.filter((r) => !r.acknowledged_at).map((r) => r.id)
+  const unreviewedIds = canManage ? reports.filter((r) => !r.acknowledged_at).map((r) => r.id) : []
   const allUnreviewedSelected = unreviewedIds.length > 0 && unreviewedIds.every((id) => selected.has(id))
 
   function toggleOne(id: string) {
@@ -130,14 +139,15 @@ export default function ReportsTable({ reports }: { reports: ReportForTable[] })
 
   return (
     <>
-      <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mb-3">
         <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-green-500" /> Reviewed</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-amber-500" /> Edited (needs re-review)</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-red-400" /> Not reviewed</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-indigo-500" /> Unread discussion</span>
       </div>
 
-      {selected.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 bg-ziwa-50 border border-ziwa-200 rounded-lg px-4 py-2.5">
+      {canManage && selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 mb-3 bg-ziwa-50 border border-ziwa-200 rounded-lg px-4 py-2.5">
           <span className="text-sm text-ziwa-800 font-medium">{selected.size} selected</span>
           {!showBatchForm ? (
             <button
@@ -198,18 +208,20 @@ export default function ReportsTable({ reports }: { reports: ReportForTable[] })
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200 text-left">
               <th className="px-3 py-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={allUnreviewedSelected && unreviewedIds.length > 0}
-                  onChange={toggleAllUnreviewed}
-                  title="Select all unreviewed"
-                  className="rounded border-gray-300 text-ziwa-600 focus:ring-ziwa-500"
-                />
+                {canManage && (
+                  <input
+                    type="checkbox"
+                    checked={allUnreviewedSelected && unreviewedIds.length > 0}
+                    onChange={toggleAllUnreviewed}
+                    title="Select all unreviewed"
+                    className="rounded border-gray-300 text-ziwa-600 focus:ring-ziwa-500"
+                  />
+                )}
               </th>
               <th className="px-4 py-3 font-medium text-gray-600">Date</th>
               <th className="px-4 py-3 font-medium text-gray-600">Department</th>
@@ -223,7 +235,7 @@ export default function ReportsTable({ reports }: { reports: ReportForTable[] })
             {reports.map((r) => (
               <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${selected.has(r.id) ? 'bg-ziwa-50/50' : ''}`}>
                 <td className="px-3 py-3">
-                  {!r.acknowledged_at && (
+                  {canManage && !r.acknowledged_at && (
                     <input
                       type="checkbox"
                       checked={selected.has(r.id)}
@@ -247,6 +259,9 @@ export default function ReportsTable({ reports }: { reports: ReportForTable[] })
                     <span className={`ml-2 inline-block text-[10px] font-semibold border rounded px-1.5 py-0.5 ${r.urgencyClasses}`}>
                       {r.urgencyLabel}
                     </span>
+                  )}
+                  {unreadThreadSet.has(r.id) && (
+                    <span className="ml-2 inline-block w-2 h-2 rounded-full bg-indigo-500" title="Unread discussion" />
                   )}
                 </td>
                 <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{r.submitted_by}</td>

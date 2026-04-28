@@ -1,27 +1,33 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { DepartmentFormConfig } from '@/types'
 import StockProjectionDisplay from './StockProjectionDisplay'
 import { getDeadlineBadge, isWithinEditWindow, formatDateTimeKampala, getKampalaDateStr, type DeadlineBadge } from '@/lib/submission-status'
 import { useDraftManager, type DraftData } from '@/hooks/useDraftManager'
 import { useSubmissionQueue } from '@/hooks/useSubmissionQueue'
+import { addSessionFlushListener } from '@hod/shared/lib/session-flush'
 import FieldRenderer from './form/FieldRenderer'
-import { validateForm } from './form/FormValidation'
+import SectionProgress from './form/SectionProgress'
+import { validateForm, validateSection } from './form/FormValidation'
+import { isSectionMarkedNA } from '@hod/shared/lib/na-markers'
 
 interface FormRendererProps {
   config: DepartmentFormConfig
   departmentId: string
+  draftScope?: string
   onSuccess: (reportId?: string) => void
   stockProjection?: { item: string; quantity: number; unit: string }[] | null
   editMode?: boolean
   editReportId?: string
   initialValues?: Record<string, unknown>
+  prefillValues?: Record<string, unknown>
   initialSubmittedBy?: string
   initialReportDate?: string
   editorName?: string
   lockedDate?: string
   readOnly?: boolean
+  currentUserName?: string
 }
 
 function isMonday(dateStr: string): boolean {
@@ -36,15 +42,18 @@ const inputClass =
 export default function FormRenderer({
   config,
   departmentId,
+  draftScope,
   onSuccess,
   stockProjection,
   editMode = false,
   editReportId,
   initialValues,
+  prefillValues,
   initialSubmittedBy,
   initialReportDate,
   lockedDate,
   readOnly = false,
+  currentUserName,
 }: FormRendererProps) {
   const now = new Date()
   const todayKampala = getKampalaDateStr(now)
@@ -73,6 +82,7 @@ export default function FormRenderer({
       if (allNames.includes(initialSubmittedBy)) return initialSubmittedBy
       return '__other__'
     }
+    if (currentUserName && allNames.includes(currentUserName)) return currentUserName
     return config.hods[0]
   })
   const [customName, setCustomName] = useState(() => {
@@ -81,6 +91,14 @@ export default function FormRenderer({
   })
   const [reportDate, setReportDate] = useState(defaultDate)
   const [values, setValues] = useState<FormValues>(initialValues ?? {})
+  const [naSections, setNaSections] = useState<Record<string, boolean>>(() => {
+    if (!initialValues) return {}
+    const initial: Record<string, boolean> = {}
+    for (const section of config.sections) {
+      if (isSectionMarkedNA(section, initialValues)) initial[section.title] = true
+    }
+    return initial
+  })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [duplicateReportId, setDuplicateReportId] = useState<string | null>(null)
@@ -95,24 +113,51 @@ export default function FormRenderer({
   const effectiveEditMode = editMode || inlineEditMode
   const effectiveEditReportId = editMode ? editReportId : existingReport?.id
   const submittedBy = nameSelection === '__other__' ? customName.trim() : nameSelection
+
+  useEffect(() => {
+    setValues((prev) => ({ ...prev, submitted_by: submittedBy }))
+  }, [submittedBy])
+
   const hasStockConfig = !!config.stockConfig
   const isStockEntryDay = hasStockConfig && isMonday(reportDate)
   const fieldDisabled = readOnly || (viewingExisting && !inlineEditMode)
 
+  const isPaged = config.sectionMode === 'paged' && !readOnly && !viewingExisting
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0)
+
+  const visibleSections = config.sections.filter((s) => {
+    if (s.mondayOnly && !isMonday(reportDate)) return false
+    return true
+  })
+
   const draftActive = !effectiveEditMode && !viewingExisting && !readOnly
+  const defaultDraftBy = config.hods[0]
   const { draftData, draftLoaded, draftStatus, saveDraft, scheduleSave, clearDraft } = useDraftManager({
     departmentId,
     reportDate,
     active: draftActive,
-    defaultDraftBy: config.hods[0],
+    defaultDraftBy,
+    draftScope,
   })
 
-  const { queueSubmission } = useSubmissionQueue((item) => {
-    if (item.departmentId === departmentId) {
-      clearDraft()
-      onSuccess(undefined)
+  const normaliseSubmitter = (s: string) => s.trim().toLowerCase()
+  const { queueSubmission } = useSubmissionQueue((item, reportId) => {
+    if (
+      item.departmentId === departmentId &&
+      item.reportDate === reportDate &&
+      normaliseSubmitter(item.submittedBy) === normaliseSubmitter(submittedBy)
+    ) {
+      clearDraft(item.submittedBy)
+      onSuccess(reportId)
     }
   })
+
+  const reportDateLagDays = (() => {
+    const msPerDay = 1000 * 60 * 60 * 24
+    return Math.round(
+      (Date.parse(`${todayKampala}T00:00:00Z`) - Date.parse(`${reportDate}T00:00:00Z`)) / msPerDay,
+    )
+  })()
 
   const draftApplied = useRef(false)
   useEffect(() => {
@@ -125,10 +170,67 @@ export default function FormRenderer({
   }, [draftData])
 
   useEffect(() => {
-    if (!draftActive || Object.keys(values).length === 0) return
+    const hasMeaningfulDraftState = (
+      Object.keys(values).length > 0 ||
+      nameSelection !== defaultDraftBy ||
+      customName.trim().length > 0 ||
+      submittedBy !== defaultDraftBy
+    )
+    if (!draftActive || !hasMeaningfulDraftState) return
     const draft: DraftData = { values, nameSelection, customName, submittedBy }
     scheduleSave(draft)
-  }, [values, nameSelection, customName, submittedBy, draftActive, scheduleSave])
+  }, [values, nameSelection, customName, submittedBy, draftActive, scheduleSave, defaultDraftBy])
+
+  const valuesRef = useRef(values)
+  const nameSelectionRef = useRef(nameSelection)
+  const customNameRef = useRef(customName)
+  const submittedByRef = useRef(submittedBy)
+  useEffect(() => { valuesRef.current = values }, [values])
+  useEffect(() => { nameSelectionRef.current = nameSelection }, [nameSelection])
+  useEffect(() => { customNameRef.current = customName }, [customName])
+  useEffect(() => { submittedByRef.current = submittedBy }, [submittedBy])
+
+  const hasMeaningfulDraft = useCallback(() => (
+    Object.keys(valuesRef.current).length > 0 ||
+    nameSelectionRef.current !== defaultDraftBy ||
+    customNameRef.current.trim().length > 0 ||
+    submittedByRef.current !== defaultDraftBy
+  ), [defaultDraftBy])
+
+  const flushDraft = useCallback(async () => {
+    if (!draftActive || !hasMeaningfulDraft()) return
+    await saveDraft({
+      values: valuesRef.current,
+      nameSelection: nameSelectionRef.current,
+      customName: customNameRef.current,
+      submittedBy: submittedByRef.current,
+    })
+  }, [draftActive, hasMeaningfulDraft, saveDraft])
+
+  useEffect(() => {
+    return addSessionFlushListener(flushDraft)
+  }, [flushDraft])
+
+  useEffect(() => {
+    if (!draftActive) return
+
+    const persistOnUnload = () => {
+      if (!hasMeaningfulDraft()) return
+      void saveDraft({
+        values: valuesRef.current,
+        nameSelection: nameSelectionRef.current,
+        customName: customNameRef.current,
+        submittedBy: submittedByRef.current,
+      })
+    }
+
+    window.addEventListener('pagehide', persistOnUnload)
+    window.addEventListener('beforeunload', persistOnUnload)
+    return () => {
+      window.removeEventListener('pagehide', persistOnUnload)
+      window.removeEventListener('beforeunload', persistOnUnload)
+    }
+  }, [draftActive, hasMeaningfulDraft, saveDraft])
 
   useEffect(() => {
     if (effectiveEditMode || readOnly) { setDeadlineBadge(null); return }
@@ -138,10 +240,29 @@ export default function FormRenderer({
     return () => clearInterval(interval)
   }, [reportDate, effectiveEditMode, readOnly])
 
+  const existingReportCache = useRef<Record<string, { id: string; submitted_by: string; submitted_at: string; report_data: Record<string, unknown> } | null>>({})
+
   useEffect(() => {
     if (editMode || readOnly || lockedDate) return
     let cancelled = false
-    async function checkExisting() {
+
+    const cacheKey = `${departmentId}:${reportDate}`
+    if (cacheKey in existingReportCache.current) {
+      const cached = existingReportCache.current[cacheKey]
+      if (cached) {
+        setExistingReport(cached)
+        setValues(cached.report_data as FormValues)
+        setViewingExisting(true)
+        setInlineEditMode(false)
+      } else {
+        setExistingReport(null)
+        setViewingExisting(false)
+        setInlineEditMode(false)
+      }
+      return
+    }
+
+    const debounceTimer = setTimeout(async () => {
       try {
         const { supabase } = await import('@/lib/supabase')
         const { data } = await supabase
@@ -151,6 +272,7 @@ export default function FormRenderer({
           .eq('report_date', reportDate)
           .maybeSingle()
         if (cancelled) return
+        existingReportCache.current[cacheKey] = data ?? null
         if (data) {
           setExistingReport(data)
           setValues(data.report_data as FormValues)
@@ -167,13 +289,52 @@ export default function FormRenderer({
           setViewingExisting(false)
         }
       }
-    }
-    checkExisting()
-    return () => { cancelled = true }
+    }, 300)
+
+    return () => { cancelled = true; clearTimeout(debounceTimer) }
   }, [reportDate, departmentId, editMode, readOnly, lockedDate])
 
   function setValue(name: string, value: unknown) {
     setValues((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const flaggedSections = (Array.isArray(values.hod_flagged_sections) ? values.hod_flagged_sections : []) as string[]
+
+  function toggleSectionFlag(sectionTitle: string) {
+    const current = (Array.isArray(values.hod_flagged_sections) ? values.hod_flagged_sections : []) as string[]
+    const next = current.includes(sectionTitle)
+      ? current.filter((s) => s !== sectionTitle)
+      : [...current, sectionTitle]
+    setValues((prev) => ({ ...prev, hod_flagged_sections: next }))
+  }
+
+  function toggleSectionNA(section: typeof config.sections[number]) {
+    const isCurrentlyNA = naSections[section.title] ?? false
+    const willBeNA = !isCurrentlyNA
+
+    if (willBeNA) {
+      const naSectionsCount = Object.values({ ...naSections, [section.title]: true }).filter(Boolean).length
+      const naEligibleSections = config.sections.filter(s => s.allowNA)
+      const totalSections = config.sections.filter(s => !s.mondayOnly || isMonday(reportDate)).length
+      if (naSectionsCount >= totalSections && naEligibleSections.length >= totalSections) {
+        if (!window.confirm("You've marked every section as N/A. Are you sure there's nothing to report today?")) {
+          return
+        }
+      }
+    }
+
+    setNaSections(prev => ({ ...prev, [section.title]: willBeNA }))
+    setValues(prev => {
+      const next = { ...prev }
+      for (const field of section.fields) {
+        if (willBeNA) {
+          next[`${field.name}__na`] = true
+        } else {
+          delete next[`${field.name}__na`]
+        }
+      }
+      return next
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -209,22 +370,39 @@ export default function FormRenderer({
         return
       }
 
-      const res = await fetch('/api/submit-report', {
+      const payload: Record<string, unknown> = {
+        departmentId, reportDate, reportData: values, submittedBy,
+        stockConfig: config.stockConfig ?? null,
+      }
+      let res = await fetch('/api/submit-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          departmentId, reportDate, reportData: values, submittedBy,
-          stockConfig: config.stockConfig ?? null,
-        }),
+        body: JSON.stringify(payload),
       })
-      const result = await res.json()
+      let result = await res.json()
+      if (!res.ok && result?.needsConfirmOffset) {
+        const days = Number(result.lagDays) || 0
+        const prompt = days >= 2
+          ? `This report is ${days} days behind today (${todayKampala}). Submit anyway?`
+          : `This report is 1 day behind today (${todayKampala}). Submit anyway?`
+        if (!window.confirm(prompt)) {
+          setSubmitting(false)
+          return
+        }
+        res = await fetch('/api/submit-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, confirm_offset: true }),
+        })
+        result = await res.json()
+      }
       if (!res.ok) {
         if (res.status === 409 && result.duplicateId) setDuplicateReportId(result.duplicateId)
         setError(result.error || 'Something went wrong. Please try again.')
         setSubmitting(false)
         return
       }
-      clearDraft()
+      clearDraft(submittedBy)
       onSuccess(result.reportId)
     } catch (err: unknown) {
       console.error(err)
@@ -262,26 +440,52 @@ export default function FormRenderer({
     saveDraft(draft)
   }
 
+  function handlePagedNext() {
+    const section = visibleSections[currentSectionIndex]
+    if (section) {
+      const err = validateSection(section, values, isStockEntryDay)
+      if (err) { setError(err); return }
+    }
+    setError(null)
+    if (draftActive) {
+      const draft: DraftData = { values, nameSelection, customName, submittedBy }
+      saveDraft(draft)
+    }
+    setCurrentSectionIndex((i) => Math.min(i + 1, visibleSections.length - 1))
+  }
+
+  function handlePagedPrevious() {
+    setError(null)
+    setCurrentSectionIndex((i) => Math.max(i - 1, 0))
+  }
+
   if (readOnly) {
     return (
       <div className="space-y-8">
-        {config.sections.map((section) => (
-          <div key={section.title} className="space-y-4 mb-8">
-            <h2 className="text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">
-              {section.title}
-            </h2>
-            <div className="space-y-4">
-              {section.fields.map((field) => (
-                <FieldRenderer
-                  key={field.name}
-                  field={field} values={values} setValue={setValue}
-                  disabled readOnly slug={config.slug}
-                  departmentId={departmentId} reportDate={reportDate}
-                />
-              ))}
+        {config.sections.map((section) => {
+          const isNA = isSectionMarkedNA(section, values)
+          return (
+            <div key={section.title} className="space-y-4 mb-8">
+              <h2 className="text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">
+                {section.title}
+              </h2>
+              {isNA ? (
+                <p className="text-sm text-gray-400 italic">Nothing to report — marked N/A</p>
+              ) : (
+                <div className="space-y-4">
+                  {section.fields.map((field) => (
+                    <FieldRenderer
+                      key={field.name}
+                      field={field} values={values} setValue={setValue}
+                      disabled readOnly slug={config.slug}
+                      departmentId={departmentId} reportDate={reportDate}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     )
   }
@@ -349,6 +553,16 @@ export default function FormRenderer({
                 'text-red-600 bg-red-50 border-red-200'
               }`}>{deadlineBadge.message}</span>
             )}
+            {reportDateLagDays >= 1 && (
+              <div className={`mt-2 rounded-md px-3 py-2 text-xs border ${
+                reportDateLagDays >= 2
+                  ? 'bg-red-50 border-red-200 text-red-700'
+                  : 'bg-amber-50 border-amber-200 text-amber-700'
+              }`}>
+                This report is dated {reportDateLagDays} day{reportDateLagDays !== 1 ? 's' : ''} before today ({todayKampala}).
+                You will be asked to confirm before it submits.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -408,20 +622,71 @@ export default function FormRenderer({
         <StockProjectionDisplay items={stockProjection} stockType={config.stockConfig?.stockType ?? 'store'} />
       )}
 
+      {isPaged && (
+        <SectionProgress
+          currentIndex={currentSectionIndex}
+          totalSections={visibleSections.length}
+          sectionTitle={visibleSections[currentSectionIndex]?.title ?? ''}
+          onPrevious={handlePagedPrevious}
+          onNext={handlePagedNext}
+          isFirst={currentSectionIndex === 0}
+          isLast={currentSectionIndex === visibleSections.length - 1}
+          submitting={submitting}
+        />
+      )}
+
       <div className={viewingExisting && !inlineEditMode ? 'opacity-60 pointer-events-none' : ''}>
-        {config.sections.map((section) => {
+        {(isPaged ? [visibleSections[currentSectionIndex]] : config.sections).filter(Boolean).map((section) => {
           const isMondaySection = !!section.mondayOnly
           const isDisabledSection = isMondaySection && !isMonday(reportDate)
+          const isSectionNA = !!(section.allowNA && naSections[section.title])
           return (
             <div key={section.title} className={`space-y-4 mb-8 ${isDisabledSection ? 'opacity-50 pointer-events-none' : ''}`}>
-              <h2 className="text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">
-                {section.title}
-              </h2>
+              <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                <h2 className="text-base font-semibold text-gray-800">
+                  {section.title}
+                </h2>
+                <div className="flex items-center gap-2">
+                  {!isDisabledSection && !fieldDisabled && (
+                    <button
+                      type="button"
+                      onClick={() => toggleSectionFlag(section.title)}
+                      title={flaggedSections.includes(section.title) ? 'Remove management flag' : 'Flag for management attention'}
+                      className={`p-1.5 rounded-full transition-colors ${
+                        flaggedSections.includes(section.title)
+                          ? 'text-red-500 bg-red-50 hover:bg-red-100'
+                          : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path d="M3.5 2.75a.75.75 0 0 0-1.5 0v14.5a.75.75 0 0 0 1.5 0v-4.392l1.657-.348a6.449 6.449 0 0 1 4.271.572 7.948 7.948 0 0 0 5.965.524l2.078-.64A.75.75 0 0 0 18 12.25v-8.5a.75.75 0 0 0-.904-.734l-2.38.501a7.25 7.25 0 0 1-4.186-.363l-.502-.2a8.75 8.75 0 0 0-5.053-.439l-1.475.31V2.75Z" />
+                      </svg>
+                    </button>
+                  )}
+                  {section.allowNA && !isDisabledSection && !fieldDisabled && (
+                    <button
+                      type="button"
+                      onClick={() => toggleSectionNA(section)}
+                      className={`text-xs font-medium rounded-full px-3 py-1 transition-colors ${
+                        isSectionNA
+                          ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {isSectionNA ? 'Undo N/A' : 'Nothing to report'}
+                    </button>
+                  )}
+                </div>
+              </div>
               {isDisabledSection ? (
                 <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-500">
                   {config.slug === 'food-and-beverage' ? 'Bar stock count is due on Mondays'
                     : config.slug === 'kitchen' ? 'Kitchen stock count is due on Mondays'
                     : 'Store stock count is due on Mondays'}
+                </div>
+              ) : isSectionNA ? (
+                <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2 text-sm text-gray-400 italic">
+                  Nothing to report
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -431,6 +696,7 @@ export default function FormRenderer({
                       field={field} values={values} setValue={setValue}
                       disabled={fieldDisabled} readOnly={readOnly} slug={config.slug}
                       departmentId={departmentId} reportDate={reportDate}
+                      prefillValues={prefillValues}
                     />
                   ))}
                 </div>
@@ -458,7 +724,7 @@ export default function FormRenderer({
         </div>
       )}
 
-      {!(viewingExisting && !inlineEditMode) && (
+      {!(viewingExisting && !inlineEditMode) && !isPaged && (
         <div className="space-y-3">
           <div className="flex gap-3">
             {!effectiveEditMode && (
@@ -474,6 +740,13 @@ export default function FormRenderer({
                 : (effectiveEditMode ? 'Save Changes' : 'Submit Report')}
             </button>
           </div>
+          {!effectiveEditMode && draftLoaded && <p className="text-xs text-center text-blue-600">Draft restored</p>}
+          {!effectiveEditMode && draftStatus === 'saved' && !draftLoaded && <p className="text-xs text-center text-green-600">Draft saved</p>}
+        </div>
+      )}
+
+      {isPaged && (
+        <div className="space-y-2">
           {!effectiveEditMode && draftLoaded && <p className="text-xs text-center text-blue-600">Draft restored</p>}
           {!effectiveEditMode && draftStatus === 'saved' && !draftLoaded && <p className="text-xs text-center text-green-600">Draft saved</p>}
         </div>

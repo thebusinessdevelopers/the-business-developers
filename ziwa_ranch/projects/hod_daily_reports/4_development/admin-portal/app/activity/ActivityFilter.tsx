@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 interface ActivityFilterProps {
   currentAction: string
@@ -10,13 +10,18 @@ interface ActivityFilterProps {
 
 export default function ActivityFilter({ currentAction, actions, labels }: ActivityFilterProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   return (
     <select
       value={currentAction}
       onChange={(e) => {
         const val = e.target.value
-        router.push(val ? `/activity?action=${val}` : '/activity')
+        const tab = searchParams.get('tab')
+        const parts: string[] = []
+        if (val) parts.push(`action=${val}`)
+        if (tab) parts.push(`tab=${tab}`)
+        router.push(parts.length > 0 ? `/activity?${parts.join('&')}` : '/activity')
       }}
       className="rounded-md border border-gray-300 px-3 py-1.5 text-sm bg-white"
     >

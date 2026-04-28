@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const authError = await verifyAdminAuth()
+    const authError = await verifyAdminAuth('report_view')
     if (authError) return authError
 
     const { slug } = await params

@@ -2,22 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminAuth, getAdminUser, logAdminActivity } from '@/lib/admin-auth'
 import { createServerClient } from '@/lib/supabase-server'
 import { EditHistoryEntry } from '@/types'
+import { harvestItemsFromReportId } from '@hod/shared/lib/harvest-items'
 
 export async function POST(request: NextRequest) {
   try {
-    const authError = await verifyAdminAuth()
+    const authError = await verifyAdminAuth('report_manage')
     if (authError) return authError
 
     const admin = await getAdminUser()
 
     const body = await request.json()
-    const { reportId, reportData, editorName } = body as {
+    const { reportId, reportData, editorName, submittedBy } = body as {
       reportId: string
       reportData: Record<string, unknown>
       editorName?: string
+      submittedBy?: string
     }
 
-    if (!reportId || !reportData) {
+    if (!reportId || !reportData || !submittedBy?.trim()) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const { data: existing } = await supabase
       .from('hod_daily_reports')
-      .select('id, report_data, edit_history, department_id, report_date')
+      .select('id, report_data, edit_history, department_id, report_date, submitted_by, submitted_by_user_id')
       .eq('id', reportId)
       .single()
 
@@ -45,6 +47,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const priorSubmittedBy = String(existing.submitted_by ?? '').trim()
+    const nextSubmittedBy = submittedBy.trim()
+    const submittedByChanged = priorSubmittedBy !== nextSubmittedBy
+    if (submittedByChanged) {
+      changes.push({
+        field: 'submitted_by',
+        old_value: priorSubmittedBy,
+        new_value: nextSubmittedBy,
+      })
+    }
+
     if (changes.length === 0) {
       return NextResponse.json({ reportId, noChanges: true })
     }
@@ -52,6 +65,9 @@ export async function POST(request: NextRequest) {
     const prevHistory = (existing.edit_history as EditHistoryEntry[] | null) ?? []
     const now = new Date().toISOString()
     const editor = editorName || admin?.hod_name || 'Admin'
+    const submittedByUserId = submittedByChanged
+      ? null
+      : existing.submitted_by_user_id
 
     const newEntry: EditHistoryEntry = {
       edited_by: editor,
@@ -63,6 +79,8 @@ export async function POST(request: NextRequest) {
       .from('hod_daily_reports')
       .update({
         report_data: reportData,
+        submitted_by: nextSubmittedBy,
+        submitted_by_user_id: submittedByUserId,
         edited_at: now,
         last_edited_by: editor,
         edit_history: [...prevHistory, newEntry],
@@ -77,20 +95,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save edit' }, { status: 500 })
     }
 
-    const { data: harvestRoute } = await supabase
-      .from('hod_departments')
-      .select('slug')
-      .eq('id', existing.department_id)
-      .single()
-
-    if (harvestRoute) {
-      const origin = request.nextUrl.origin
-      fetch(`${origin}/api/harvest-items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportId }),
-      }).catch(() => {})
-    }
+    Promise.resolve(harvestItemsFromReportId(supabase, reportId)).catch((err) => {
+      console.error('Admin harvest after edit failed:', err)
+    })
 
     if (admin) {
       await logAdminActivity(admin.id, 'report_edited', {
@@ -100,6 +107,10 @@ export async function POST(request: NextRequest) {
         edited_by: editor,
         admin_title: admin.admin_title,
         source: 'admin_portal',
+        submitted_by_changed: submittedByChanged,
+        submitted_by_old: submittedByChanged ? priorSubmittedBy : undefined,
+        submitted_by_new: submittedByChanged ? nextSubmittedBy : undefined,
+        submitted_by_user_id_policy: submittedByChanged ? 'set_null_for_manual_override' : 'preserved',
         fields_changed: changes.map((c) => c.field),
         ip: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip'),
       }).catch(() => {})

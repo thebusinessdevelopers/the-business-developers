@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { LOGIN_DEPARTMENTS, type LoginDepartment, type LoginUser } from '@/config/login-users'
+import GlobalMessageBanner from './GlobalMessageBanner'
 
 type Step = 'department' | 'name' | 'password' | 'guest-name'
 
@@ -319,7 +320,8 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+      <GlobalMessageBanner />
       <Suspense fallback={
         <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm max-w-md w-full text-center text-gray-400 text-sm">
           Loading...

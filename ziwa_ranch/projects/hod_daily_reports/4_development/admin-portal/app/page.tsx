@@ -2,49 +2,42 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase-server'
-import { getSubmissionStatus, getKampalaDateStr, getExpectedReportingDays } from '@/lib/submission-status'
+import { getKampalaDateStr, getExpectedReportingDays } from '@/lib/submission-status'
 import DailyDigestCard from '@/components/DailyDigestCard'
+import TrendInsightsCard from '@/components/TrendInsightsCard'
+import KpiDashboard from '@/components/KpiDashboard'
+import ReportingIntelligenceWidget from '@/components/ReportingIntelligenceWidget'
 
-interface DeptRow {
-  id: string
-  name: string
-  slug: string
-  sort_order: number
-}
-
-interface ReportRow {
-  id: string
+interface DashboardRow {
   department_id: string
-  submitted_by: string
-  report_date: string
-  submitted_at: string
-  ai_flags: { top_label?: string; top_score?: number } | null
+  dept_name: string
+  dept_slug: string
+  dept_sort_order: number
+  submitted_today: boolean
+  today_submitted_by: string | null
+  today_report_id: string | null
+  today_ai_top_label: string | null
+  today_ai_top_score: number | null
+  unique_days_7: number
+  unique_days_30: number
+  late_count_7: number
+  warning_count_7: number
+  late_count_30: number
+  total_reports_7: number
+  total_reports_30: number
+  last_report_date: string | null
 }
 
-function isUrgent(flags: ReportRow['ai_flags']): boolean {
-  return !!flags?.top_label && flags.top_label === 'urgent issue' && (flags.top_score ?? 0) >= 0.4
+function isUrgent(label: string | null, score: number | null): boolean {
+  return label === 'urgent issue' && (score ?? 0) >= 0.4
 }
 
-function needsMaintenance(flags: ReportRow['ai_flags']): boolean {
-  return !!flags?.top_label && flags.top_label === 'maintenance needed' && (flags.top_score ?? 0) >= 0.4
-}
-
-function countLate(reports: ReportRow[]): number {
-  return reports.filter((r) => getSubmissionStatus(r.submitted_at, r.report_date) === 'late').length
-}
-
-function countWarning(reports: ReportRow[]): number {
-  return reports.filter((r) => getSubmissionStatus(r.submitted_at, r.report_date) === 'warning').length
+function needsMaintenance(label: string | null, score: number | null): boolean {
+  return label === 'maintenance needed' && (score ?? 0) >= 0.4
 }
 
 export default async function DashboardHome() {
   const supabase = createServerClient()
-
-  const { data: departments } = await supabase
-    .from('hod_departments')
-    .select('id, name, slug, sort_order')
-    .eq('is_active', true)
-    .order('sort_order')
 
   const today = getKampalaDateStr(new Date())
 
@@ -56,98 +49,54 @@ export default async function DashboardHome() {
   sevenDate.setUTCDate(sevenDate.getUTCDate() - 6)
   const sevenStr = sevenDate.toISOString().split('T')[0]
 
-  const { data: reports } = await supabase
-    .from('hod_daily_reports')
-    .select('id, department_id, submitted_by, report_date, submitted_at, ai_flags')
-    .gte('report_date', thirtyStr)
+  const { data: rpcData } = await supabase.rpc('get_dashboard_stats', {
+    p_today: today,
+    p_seven_ago: sevenStr,
+    p_thirty_ago: thirtyStr,
+  })
 
-  const depts = (departments ?? []) as DeptRow[]
-  const allReports = (reports ?? []) as ReportRow[]
-
+  const rows = (rpcData ?? []) as DashboardRow[]
   const expectedDays7 = getExpectedReportingDays(sevenStr, today)
   const expectedDays30 = getExpectedReportingDays(thirtyStr, today)
 
-  const stats = depts.map((dept) => {
-    const dr = allReports.filter((r) => r.department_id === dept.id)
-    const todayReport = dr.find((r) => r.report_date === today)
-    const last7 = dr.filter((r) => r.report_date >= sevenStr)
-    const uniqueDays7 = new Set(last7.map((r) => r.report_date)).size
-    const uniqueDays30 = new Set(dr.map((r) => r.report_date)).size
-    const late7 = countLate(last7)
-    const warning7 = countWarning(last7)
-    const late30 = countLate(dr)
-
-    const sortedDates = [...new Set(dr.map((r) => r.report_date))].sort().reverse()
-    const lastReportDate = sortedDates[0] ?? null
+  const stats = rows.map((r) => {
     let daysSinceLast = 0
-    if (lastReportDate) {
-      const lastMs = new Date(lastReportDate + 'T12:00:00Z').getTime()
+    if (r.last_report_date) {
+      const lastMs = new Date(r.last_report_date + 'T12:00:00Z').getTime()
       const todayMs = new Date(today + 'T12:00:00Z').getTime()
       daysSinceLast = Math.round((todayMs - lastMs) / (86400 * 1000))
     }
 
     return {
-      ...dept,
-      submittedToday: !!todayReport,
-      todayBy: todayReport?.submitted_by,
-      rate7: expectedDays7.length > 0 ? Math.round((uniqueDays7 / expectedDays7.length) * 100) : 0,
-      rate30: expectedDays30.length > 0 ? Math.round((uniqueDays30 / expectedDays30.length) * 100) : 0,
-      late7,
-      warning7,
-      late30,
-      lastReportDate,
+      id: r.department_id,
+      name: r.dept_name,
+      slug: r.dept_slug,
+      sort_order: r.dept_sort_order,
+      submittedToday: r.submitted_today,
+      todayBy: r.today_submitted_by,
+      rate7: expectedDays7.length > 0 ? Math.round((r.unique_days_7 / expectedDays7.length) * 100) : 0,
+      rate30: expectedDays30.length > 0 ? Math.round((r.unique_days_30 / expectedDays30.length) * 100) : 0,
+      late7: r.late_count_7,
+      warning7: r.warning_count_7,
+      late30: r.late_count_30,
+      missed7: Math.max(0, expectedDays7.length - r.unique_days_7),
+      missed30: Math.max(0, expectedDays30.length - r.unique_days_30),
+      lastReportDate: r.last_report_date,
       daysSinceLast,
+      aiLabel: r.today_ai_top_label,
+      aiScore: r.today_ai_top_score,
     }
   })
 
-  const submittedCount = stats.filter((s) => s.submittedToday).length
-  const totalLate7 = stats.reduce((sum, s) => sum + s.late7, 0)
-  const totalWarning7 = stats.reduce((sum, s) => sum + s.warning7, 0)
-  const totalLate30 = stats.reduce((sum, s) => sum + s.late30, 0)
-  const totalReports7 = allReports.filter((r) => r.report_date >= sevenStr).length
-  const totalReports30 = allReports.length
-
-  const todayReports = allReports.filter((r) => r.report_date === today)
-  const urgentToday = todayReports.filter((r) => isUrgent(r.ai_flags)).length
-  const maintenanceToday = todayReports.filter((r) => needsMaintenance(r.ai_flags)).length
+  const urgentToday = stats.filter((s) => s.submittedToday && isUrgent(s.aiLabel, s.aiScore)).length
+  const maintenanceToday = stats.filter((s) => s.submittedToday && needsMaintenance(s.aiLabel, s.aiScore)).length
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Overview</h1>
-        <p className="text-sm text-gray-500 mt-1">Reporting performance across all departments.</p>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Today</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{submittedCount}/{depts.length}</p>
-          <p className="text-xs text-gray-400 mt-0.5">departments submitted</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">7-day total</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{totalReports7}</p>
-          <p className="text-xs text-gray-400 mt-0.5">reports submitted</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-amber-600 uppercase tracking-wide">Warnings (7d)</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{totalWarning7}</p>
-          <p className="text-xs text-gray-400 mt-0.5">12–3 PM submissions</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Late (7 days)</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{totalLate7}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{totalReports7 > 0 ? Math.round((totalLate7 / totalReports7) * 100) : 0}% of submissions</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Late (30 days)</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{totalLate30}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{totalReports30 > 0 ? Math.round((totalLate30 / totalReports30) * 100) : 0}% of submissions</p>
-        </div>
-      </div>
+      <KpiDashboard />
 
       {(urgentToday > 0 || maintenanceToday > 0) && (
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           {urgentToday > 0 && (
             <div className="bg-red-50 rounded-xl border border-red-200 px-5 py-3 flex items-center gap-3">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
@@ -171,80 +120,15 @@ export default async function DashboardHome() {
 
       <DailyDigestCard />
 
+      <TrendInsightsCard />
+
       <div className="text-right -mt-4">
         <Link href="/analysis" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
           Full analysis (daily, weekly, monthly) &rarr;
         </Link>
       </div>
 
-      <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Today&apos;s Status</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {stats.map((dept) => (
-            <div
-              key={dept.id}
-              className={`rounded-xl border p-4 ${
-                dept.submittedToday
-                  ? 'bg-green-50 border-green-200'
-                  : 'bg-red-50 border-red-200'
-              }`}
-            >
-              <p className="font-semibold text-sm text-gray-900">{dept.name}</p>
-              {dept.submittedToday ? (
-                <p className="text-xs text-green-700 mt-1">Submitted by {dept.todayBy}</p>
-              ) : (
-                <>
-                  <p className="text-xs text-red-600 mt-1">Not yet submitted</p>
-                  {dept.lastReportDate && (
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Last: {new Date(dept.lastReportDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Africa/Kampala' })}
-                      {dept.daysSinceLast >= 3 && (
-                        <span className="text-red-500 font-medium ml-1">({dept.daysSinceLast}d gap)</span>
-                      )}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Submission Rates</h2>
-        <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-          {stats.map((dept) => (
-            <div key={dept.id} className="flex items-center gap-4 px-5 py-3">
-              <p className="text-sm font-medium text-gray-900 w-44 flex-shrink-0">{dept.name}</p>
-              <div className="flex-1 flex items-center gap-3">
-                <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-ziwa-500 transition-all"
-                    style={{ width: `${Math.min(dept.rate30, 100)}%` }}
-                  />
-                </div>
-                <span className="text-xs text-gray-500 w-10 text-right">{dept.rate30}%</span>
-              </div>
-              <div className="flex gap-4 text-xs text-gray-400 flex-shrink-0">
-                <span>7d: {dept.rate7}%</span>
-                <span>30d: {dept.rate30}%</span>
-                {dept.warning7 > 0 && (
-                  <span className="text-amber-600">{dept.warning7} warn</span>
-                )}
-                {dept.late30 > 0 && (
-                  <span className="text-red-500">{dept.late30} late</span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="text-center pt-4">
-        <Link href="/reports" className="text-sm text-ziwa-600 hover:text-ziwa-700 font-medium">
-          View all reports &rarr;
-        </Link>
-      </div>
+      <ReportingIntelligenceWidget departments={stats} urgentToday={urgentToday} />
     </div>
   )
 }

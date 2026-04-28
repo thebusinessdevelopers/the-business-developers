@@ -16,20 +16,12 @@ export default function StockActions({ entryId, currentStatus }: StockActionsPro
   async function updateStatus(newStatus: string) {
     setLoading(true)
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
-
-      const updateData: Record<string, unknown> = { status: newStatus }
-      if (notes.trim()) updateData.admin_notes = notes.trim()
-
-      await supabase
-        .from('hod_verified_stock')
-        .update(updateData)
-        .eq('id', entryId)
-
+      const res = await fetch('/api/stock/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entryId, status: newStatus, notes: notes.trim() || undefined }),
+      })
+      if (!res.ok) throw new Error('Update failed')
       setStatus(newStatus)
       setShowNotes(false)
     } catch (err) {

@@ -25,25 +25,28 @@ export async function loginAction(_prev: unknown, formData: FormData) {
   cookieStore.set(getSessionCookieConfig(result.token))
 
   await logAdminActivity(result.user.id, 'admin_login', {
+    source: 'password_login',
     username: result.user.username,
     admin_title: result.user.admin_title,
     ip,
+    user_agent: hdrs.get('user-agent'),
+    session_token_suffix: result.token.slice(-8),
   }).catch(() => {})
 
   redirect('/')
 }
 
 export async function logoutAction() {
-  const { getAdminUser } = await import('@/lib/admin-auth')
-  const user = await getAdminUser()
-
-  if (user) {
-    await logAdminActivity(user.id, 'admin_logout', {
-      username: user.username,
-      admin_title: user.admin_title,
+  const consumed = await adminLogout()
+  if (consumed) {
+    await logAdminActivity(consumed.userId, 'admin_logout', {
+      source: 'manual_action',
+      username: consumed.username,
+      admin_title: consumed.adminTitle,
+      session_id: consumed.sessionId,
+      session_token_suffix: consumed.tokenSuffix,
     }).catch(() => {})
   }
 
-  await adminLogout()
   redirect('/')
 }
