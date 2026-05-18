@@ -6,6 +6,7 @@ import {
   BUILDING_LABELS,
   MEAL_PLAN_LABELS,
   addAccommodationDays,
+  canDirectlyManageAccommodationBookings,
   getAccommodationCapabilities,
   getAccommodationRangePolicy,
   getDefaultAccommodationVisibleRange,
@@ -28,6 +29,7 @@ interface PortalUnit {
   building: string
   category: string
   capacity: number
+  pax_config: AccommodationUnit['pax_config']
   rate_category: string
   pricing_type?: 'flat' | 'per_person'
   sort_order: number
@@ -154,6 +156,8 @@ export default function RoomsTab({ departmentSlug, currentUserId }: Props) {
 
   const canBook = capabilities.canCreateBooking
   const needsApproval = capabilities.requiresApproval
+  const canDirectlyManageBookings = canDirectlyManageAccommodationBookings(departmentSlug)
+  const usesBookingRequestPath = canBook && needsApproval
   const existingBookingAction = capabilities.existingBookingAction
   const emptyCellAction = capabilities.emptyCellAction
 
@@ -239,7 +243,7 @@ export default function RoomsTab({ departmentSlug, currentUserId }: Props) {
       building: u.building as BuildingType,
       status: 'active' as const,
       rate_category: u.rate_category || u.category,
-      pax_config: null,
+      pax_config: u.pax_config,
       description: null,
       pricing_type: u.pricing_type ?? 'flat',
       created_at: '',
@@ -354,8 +358,13 @@ export default function RoomsTab({ departmentSlug, currentUserId }: Props) {
       return
     }
 
-    if (existingBookingAction === 'manage') {
+    if (existingBookingAction === 'manage' && canDirectlyManageBookings) {
       openManagerEdit(bookingId)
+      return
+    }
+
+    if (existingBookingAction === 'manage' && usesBookingRequestPath) {
+      openChangeForm(bookingId)
       return
     }
 

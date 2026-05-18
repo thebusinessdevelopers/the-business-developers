@@ -1,14 +1,18 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { BUILDING_LABELS, MEAL_PLAN_SHORT, formatDate } from '@hod/shared/config/accommodation'
-import type { BuildingType } from '@hod/shared/types'
+import { BOOKING_STATUS_LABELS, BUILDING_LABELS, MEAL_PLAN_LABELS, MEAL_PLAN_SHORT, formatDate } from '@hod/shared/config/accommodation'
+import { createRoomingWhatsappRow, formatRoomingWhatsappMessage } from '@hod/shared/lib/rooming-whatsapp'
+import type { RoomingWhatsappRow } from '@hod/shared/lib/rooming-whatsapp'
+import type { BookingStatus, BuildingType, MealPlan, RoomBasketItem } from '@hod/shared/types'
 
 interface SummaryUnit {
   id: string
   name: string
   building: string
+  category?: string | null
   capacity: number
+  max_concurrent_bookings?: number | null
   sort_order: number
 }
 
@@ -22,7 +26,7 @@ interface SummaryBooking {
   meal_plan: string
   status: string
   special_notes: string | null
-  booking_rooms: { unit_id: string; accommodation_units: SummaryUnit }[]
+  booking_rooms: SummaryBookingRoom[]
 }
 
 interface SummaryData {
@@ -30,6 +34,65 @@ interface SummaryData {
   bookings: SummaryBooking[]
   units: SummaryUnit[]
   summary: { totalGuests: number; occupiedUnits: number; totalUnits: number }
+}
+
+interface SummaryBookingRoom {
+  unit_id: string
+  room_config?: RoomBasketItem | null
+  accommodation_units: SummaryUnit
+}
+
+type UnitBooking = { booking: SummaryBooking; room: SummaryBookingRoom }
+
+function isSharedCapacityUnit(unit: SummaryUnit): boolean {
+  return unit.category === 'campsite' || unit.building === 'campsite' || (unit.max_concurrent_bookings ?? 1) > 1
+}
+
+function buildUnitBookingsMap(bookings: SummaryBooking[]): Map<string, UnitBooking[]> {
+  const unitBookingsMap = new Map<string, UnitBooking[]>()
+  for (const booking of bookings) {
+    for (const room of booking.booking_rooms) {
+      const bookings = unitBookingsMap.get(room.unit_id) ?? []
+      bookings.push({ booking, room })
+      unitBookingsMap.set(room.unit_id, bookings)
+    }
+  }
+  return unitBookingsMap
+}
+
+function getRoomPaxLabel(roomConfig?: RoomBasketItem | null): string {
+  if (!roomConfig) return 'per-room pax not recorded'
+  return `${roomConfig.adults}${roomConfig.children > 0 ? ` + ${roomConfig.children}ch` : ''}`
+}
+
+function getRoomWhatsappPaxLabel(roomConfig?: RoomBasketItem | null): string | undefined {
+  return roomConfig ? undefined : 'per-room pax not recorded'
+}
+
+function getRoomConfigurationLabel(roomConfig?: RoomBasketItem | null): string {
+  return roomConfig?.room_configuration_label?.trim() || 'per-room pax not recorded'
+}
+
+function getRoomMealPlan(booking: SummaryBooking, room: SummaryBookingRoom): string {
+  return room.room_config?.meal_plan ?? booking.meal_plan
+}
+
+function formatMealPlanLabel(mealPlan: string): string {
+  return MEAL_PLAN_LABELS[mealPlan as MealPlan] ?? mealPlan
+}
+
+function formatMealPlanShort(mealPlan: string): string {
+  return MEAL_PLAN_SHORT[mealPlan as MealPlan] || mealPlan
+}
+
+function getStayNight(date: string, booking: SummaryBooking): string {
+  const checkIn = new Date(`${booking.check_in}T00:00:00`).getTime()
+  const checkOut = new Date(`${booking.check_out}T00:00:00`).getTime()
+  const stayDate = new Date(`${date}T00:00:00`).getTime()
+  const dayMs = 24 * 60 * 60 * 1000
+  const nights = Math.max(1, Math.round((checkOut - checkIn) / dayMs))
+  const night = Math.min(nights, Math.max(1, Math.round((stayDate - checkIn) / dayMs) + 1))
+  return `${night} of ${nights}`
 }
 
 export default function DailySummary() {
@@ -51,14 +114,8 @@ export default function DailySummary() {
 
   function buildWhatsAppText(): string {
     if (!data) return ''
-    const lines: string[] = [`*ZIWA RANCH — ROOMING LIST*`, `*${formatDate(data.date)}*`, '']
-
-    const unitBookingMap = new Map<string, SummaryBooking>()
-    for (const b of data.bookings) {
-      for (const br of b.booking_rooms) {
-        unitBookingMap.set(br.unit_id, b)
-      }
-    }
+    const unitBookingsMap = buildUnitBookingsMap(data.bookings)
+    const rows: RoomingWhatsappRow[] = []
 
     const byBuilding = new Map<string, SummaryUnit[]>()
     for (const u of data.units) {
@@ -67,24 +124,30 @@ export default function DailySummary() {
       byBuilding.set(u.building, list)
     }
 
-    for (const [building, bUnits] of byBuilding) {
-      lines.push(`*${BUILDING_LABELS[building as BuildingType] ?? building}*`)
+    for (const [, bUnits] of byBuilding) {
       for (const unit of bUnits) {
-        const b = unitBookingMap.get(unit.id)
-        if (b) {
-          const mp = MEAL_PLAN_SHORT[b.meal_plan as keyof typeof MEAL_PLAN_SHORT] || b.meal_plan
-          const guests = b.adults + (b.children > 0 ? ` + ${b.children}ch` : '')
-          lines.push(`  ${unit.name}: ${b.guest_name} (${guests}, ${mp})`)
-        } else {
-          lines.push(`  ${unit.name}: —`)
+        const unitBookings = unitBookingsMap.get(unit.id) ?? []
+        if (unitBookings.length > 0) {
+          const bookingsToShow = isSharedCapacityUnit(unit) ? unitBookings : unitBookings.slice(0, 1)
+          for (const { booking, room } of bookingsToShow) {
+            rows.push(createRoomingWhatsappRow({
+              roomName: unit.name,
+              guestName: booking.guest_name,
+              adults: room.room_config?.adults ?? 0,
+              children: room.room_config?.children ?? 0,
+              paxLabel: getRoomWhatsappPaxLabel(room.room_config),
+              roomConfigurationLabel: getRoomConfigurationLabel(room.room_config),
+              mealPlan: formatMealPlanLabel(getRoomMealPlan(booking, room)),
+              stayNight: getStayNight(data.date, booking),
+              status: BOOKING_STATUS_LABELS[booking.status as BookingStatus] ?? booking.status,
+              notes: room.room_config?.notes || booking.special_notes,
+            }))
+          }
         }
       }
-      lines.push('')
     }
 
-    lines.push(`*Total Guests:* ${data.summary.totalGuests}`)
-    lines.push(`*Occupancy:* ${data.summary.occupiedUnits}/${data.summary.totalUnits} rooms`)
-    return lines.join('\n')
+    return formatRoomingWhatsappMessage({ date: data.date, rows })
   }
 
   function handleCopy() {
@@ -99,10 +162,7 @@ export default function DailySummary() {
 
   const tableRows = useMemo(() => {
     if (!data) return null
-    const unitBookingMap = new Map<string, SummaryBooking>()
-    for (const b of data.bookings) {
-      for (const br of b.booking_rooms) unitBookingMap.set(br.unit_id, b)
-    }
+    const unitBookingsMap = buildUnitBookingsMap(data.bookings)
     const byBuilding = new Map<string, SummaryUnit[]>()
     for (const u of data.units) {
       const list = byBuilding.get(u.building) || []
@@ -119,22 +179,30 @@ export default function DailySummary() {
         </tr>
       )
       for (const unit of bUnits) {
-        const b = unitBookingMap.get(unit.id)
-        rows.push(
-          <tr key={unit.id} className="border-b border-gray-100 hover:bg-gray-50/50">
-            <td className="px-4 py-2 font-medium text-gray-700">{unit.name}</td>
-            {b ? (
-              <>
-                <td className="px-4 py-2 text-gray-800">{b.guest_name}</td>
-                <td className="px-4 py-2 text-gray-500 text-xs">{formatDate(b.check_in)} → {formatDate(b.check_out)}</td>
-                <td className="px-4 py-2 text-gray-600">{b.adults}{b.children > 0 ? ` + ${b.children}ch` : ''}</td>
-                <td className="px-4 py-2 text-gray-600">{MEAL_PLAN_SHORT[b.meal_plan as keyof typeof MEAL_PLAN_SHORT] || b.meal_plan}</td>
-              </>
-            ) : (
+        const unitBookings = unitBookingsMap.get(unit.id) ?? []
+        const bookingsToShow = isSharedCapacityUnit(unit) ? unitBookings : unitBookings.slice(0, 1)
+        if (bookingsToShow.length === 0) {
+          rows.push(
+            <tr key={unit.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+              <td className="px-4 py-2 font-medium text-gray-700">{unit.name}</td>
               <td colSpan={4} className="px-4 py-2 text-gray-300">—</td>
-            )}
-          </tr>
-        )
+            </tr>
+          )
+          continue
+        }
+        for (const [index, b] of bookingsToShow.entries()) {
+          rows.push(
+            <tr key={`${unit.id}-${b.booking.id}`} className="border-b border-gray-100 hover:bg-gray-50/50">
+              <td className="px-4 py-2 font-medium text-gray-700">
+                {unit.name}{isSharedCapacityUnit(unit) && bookingsToShow.length > 1 ? ` #${index + 1}` : ''}
+              </td>
+              <td className="px-4 py-2 text-gray-800">{b.booking.guest_name}</td>
+              <td className="px-4 py-2 text-gray-500 text-xs">{formatDate(b.booking.check_in)} → {formatDate(b.booking.check_out)}</td>
+              <td className="px-4 py-2 text-gray-600">{getRoomPaxLabel(b.room.room_config)}</td>
+              <td className="px-4 py-2 text-gray-600">{formatMealPlanShort(getRoomMealPlan(b.booking, b.room))}</td>
+            </tr>
+          )
+        }
       }
     }
     return rows

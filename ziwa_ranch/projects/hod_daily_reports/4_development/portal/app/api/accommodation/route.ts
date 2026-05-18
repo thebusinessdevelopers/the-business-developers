@@ -35,7 +35,7 @@ export const GET = withAuth(async ({ user, request }) => {
       .order('check_in'),
     supabase
       .from('accommodation_units')
-      .select('id, name, building, category, capacity, rate_category, pricing_type, sort_order')
+      .select('id, name, building, category, capacity, rate_category, pax_config, pricing_type, sort_order')
       .eq('status', 'active')
       .order('sort_order'),
   ])

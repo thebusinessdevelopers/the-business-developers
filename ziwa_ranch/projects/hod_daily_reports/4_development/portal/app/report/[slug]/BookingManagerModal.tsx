@@ -30,6 +30,7 @@ import {
   calculateActivityLineTotal,
   calculateBasketRate,
   calculateItemRate,
+  canDirectlyCancelAccommodationBooking,
   formatDate,
   lookupActivityRate,
   nightsBetween,
@@ -97,6 +98,43 @@ async function readJsonResponse(response: Response): Promise<Record<string, unkn
     return JSON.parse(text) as Record<string, unknown>
   } catch {
     return null
+  }
+}
+
+function getRoomConfigurationOptions(unit: AccommodationUnit | undefined) {
+  return unit?.pax_config?.stay_configurations ?? []
+}
+
+function normaliseRoomConfiguration(item: RoomBasketItem, unit: AccommodationUnit | undefined): RoomBasketItem {
+  const options = getRoomConfigurationOptions(unit)
+
+  if (options.length === 0) {
+    if (item.room_configuration_code == null && item.room_configuration_label == null) return item
+    return { ...item, room_configuration_code: null, room_configuration_label: null }
+  }
+
+  if (options.length === 1) {
+    const [option] = options
+    if (item.room_configuration_code === option.code && item.room_configuration_label === option.label) return item
+    return { ...item, room_configuration_code: option.code, room_configuration_label: option.label }
+  }
+
+  const selected = options.find((option) => option.code === item.room_configuration_code)
+  if (!selected) {
+    if (item.room_configuration_code == null && item.room_configuration_label == null) return item
+    return { ...item, room_configuration_code: null, room_configuration_label: null }
+  }
+  if (item.room_configuration_label === selected.label) return item
+
+  return { ...item, room_configuration_code: selected.code, room_configuration_label: selected.label }
+}
+
+function normaliseStoredForm(form: FormState, units: AccommodationUnit[]): FormState {
+  return {
+    ...form,
+    basket: form.basket.map((item) =>
+      normaliseRoomConfiguration(item, units.find((unit) => unit.id === item.unit_id))
+    ),
   }
 }
 
@@ -195,9 +233,9 @@ export default function BookingManagerModal({
     if (bookingId || defaults.unit_id) return
     const storedDraft = loadSessionStateLocal<FormState>(draftKey)
     if (!storedDraft?.data) return
-    setForm(storedDraft.data)
+    setForm(normaliseStoredForm(storedDraft.data, units))
     setRestoredDraft(true)
-  }, [bookingId, defaults.unit_id, draftKey])
+  }, [bookingId, defaults.unit_id, draftKey, units])
 
   const persistDraft = useCallback(() => {
     if (!hasManagerDraft(formRef.current)) {
@@ -271,14 +309,14 @@ export default function BookingManagerModal({
         const basket = rooms.map((room) => {
           const unit = units.find((item) => item.id === room.unit_id)
           if (room.room_config) {
-            return {
+            return normaliseRoomConfiguration({
               ...room.room_config,
               pricing_type: room.room_config.pricing_type ?? unit?.pricing_type ?? 'flat',
               isComplimentary: room.room_config.isComplimentary ?? false,
               compReason: room.room_config.compReason,
-            }
+            }, unit)
           }
-          return {
+          return normaliseRoomConfiguration({
             unit_id: room.unit_id,
             unit_name: unit?.name ?? 'Unknown',
             rate_category: unit?.rate_category ?? '',
@@ -289,7 +327,7 @@ export default function BookingManagerModal({
             notes: '',
             pricing_type: unit?.pricing_type ?? 'flat',
             isComplimentary: false,
-          }
+          }, unit)
         })
 
         const loadedActivities: ActivityBasketItem[] = (booking.booking_activities ?? []).map((a: Record<string, unknown>) => ({
@@ -331,7 +369,7 @@ export default function BookingManagerModal({
           clearSessionStateLocal(draftKey)
         }
 
-        setForm(shouldRestore && storedDraft ? storedDraft.data : loadedForm)
+        setForm(shouldRestore && storedDraft ? normaliseStoredForm(storedDraft.data, units) : loadedForm)
         setRestoredDraft(shouldRestore)
         setLoadingBooking(false)
       })
@@ -350,7 +388,7 @@ export default function BookingManagerModal({
     setForm((current) => {
       if (current.basket.some((item) => item.unit_id === unit.id)) return current
 
-      const newItem: RoomBasketItem = {
+      const newItem = normaliseRoomConfiguration({
         unit_id: unit.id,
         unit_name: unit.name,
         rate_category: unit.rate_category,
@@ -361,7 +399,7 @@ export default function BookingManagerModal({
         notes: '',
         pricing_type: unit.pricing_type ?? 'flat',
         isComplimentary: false,
-      }
+      }, unit)
       const year = current.check_in ? new Date(current.check_in).getFullYear() : new Date().getFullYear()
       const suggestedRate = calculateItemRate(newItem, rates, current.rate_type, year)
       if (suggestedRate != null) newItem.rate_per_night = suggestedRate
@@ -388,6 +426,7 @@ export default function BookingManagerModal({
   const nights = form.check_in && form.check_out ? nightsBetween(form.check_in, form.check_out) : 0
   const year = form.check_in ? new Date(form.check_in).getFullYear() : new Date().getFullYear()
   const isPendingReview = bookingId != null && form.status === 'hod_pending'
+  const canDirectlyCancelBooking = bookingId != null && canDirectlyCancelAccommodationBooking(departmentSlug)
 
   const rateBreakdown = useMemo(
     () => calculateBasketRate(form.basket, rates, form.rate_type, form.check_in, form.check_out),
@@ -412,6 +451,19 @@ export default function BookingManagerModal({
     [isPendingReview],
   )
 
+  useEffect(() => {
+    setForm((current) => {
+      let changed = false
+      const basket = current.basket.map((item) => {
+        const next = normaliseRoomConfiguration(item, units.find((unit) => unit.id === item.unit_id))
+        changed = changed || next !== item
+        return next
+      })
+
+      return changed ? { ...current, basket } : current
+    })
+  }, [units])
+
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
   }
@@ -419,7 +471,7 @@ export default function BookingManagerModal({
   const addRoom = useCallback((unit: AccommodationUnit) => {
     if (selectedUnitIds.has(unit.id)) return
 
-    const newItem: RoomBasketItem = {
+    const newItem = normaliseRoomConfiguration({
       unit_id: unit.id,
       unit_name: unit.name,
       rate_category: unit.rate_category,
@@ -430,7 +482,7 @@ export default function BookingManagerModal({
       notes: '',
       pricing_type: unit.pricing_type ?? 'flat',
       isComplimentary: false,
-    }
+    }, unit)
     const suggestedRate = calculateItemRate(newItem, rates, form.rate_type, year)
     if (suggestedRate != null) newItem.rate_per_night = suggestedRate
 
@@ -481,6 +533,7 @@ export default function BookingManagerModal({
   const [showChangeHistory, setShowChangeHistory] = useState(false)
   const [deletionReason, setDeletionReason] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletionAction, setDeletionAction] = useState<'direct_cancel' | 'admin_delete'>('admin_delete')
   const [deletionSubmitting, setDeletionSubmitting] = useState(false)
 
   useEffect(() => {
@@ -527,7 +580,49 @@ export default function BookingManagerModal({
     setForm((current) => ({ ...current, activities: current.activities.filter((_, i) => i !== index) }))
   }, [])
 
-  async function handleDeletionRequest() {
+  const isDirectCancellation = deletionAction === 'direct_cancel'
+
+  function openDirectCancellation() {
+    setDeletionAction('direct_cancel')
+    setDeletionReason('')
+    setShowDeleteConfirm(true)
+  }
+
+  function openAdminDeletionRequest() {
+    setDeletionAction('admin_delete')
+    setDeletionReason('')
+    setShowDeleteConfirm(true)
+  }
+
+  async function handleDirectCancellation() {
+    if (!bookingId) return
+    setDeletionSubmitting(true)
+    try {
+      const res = await fetch(`/api/accommodation/bookings/${bookingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'cancelled',
+          reason: deletionReason.trim() || null,
+        }),
+      })
+
+      if (res.ok) {
+        setShowDeleteConfirm(false)
+        setDeletionReason('')
+        await onSaved('Booking cancelled.')
+        onClose()
+      } else {
+        const data = await readJsonResponse(res)
+        setError(String(data?.error || 'Failed to cancel booking.'))
+      }
+    } catch {
+      setError('Failed to cancel booking.')
+    }
+    setDeletionSubmitting(false)
+  }
+
+  async function handleAdminDeletionRequest() {
     if (!bookingId || !deletionReason.trim()) return
     setDeletionSubmitting(true)
     try {
@@ -878,6 +973,8 @@ export default function BookingManagerModal({
                 {form.basket.map((item, index) => {
                   const itemRate = item.isComplimentary ? 0 : item.rate_per_night
                   const itemTotal = item.isComplimentary ? 0 : (itemRate != null && nights > 0 ? itemRate * nights : null)
+                  const unit = units.find((unitItem) => unitItem.id === item.unit_id)
+                  const roomConfigurationOptions = getRoomConfigurationOptions(unit)
 
                   return (
                     <div key={item.unit_id} className="border border-gray-200 rounded-lg p-3 space-y-2">
@@ -931,6 +1028,33 @@ export default function BookingManagerModal({
                           />
                         </div>
                       </div>
+                      {roomConfigurationOptions.length > 0 && (
+                        <div>
+                          <label className="block text-[10px] text-gray-400 mb-0.5">Room Configuration</label>
+                          {roomConfigurationOptions.length === 1 ? (
+                            <p className="border border-gray-200 rounded px-1.5 py-1 text-xs text-gray-600 bg-gray-50">
+                              {roomConfigurationOptions[0].label}
+                            </p>
+                          ) : (
+                            <select
+                              value={item.room_configuration_code ?? ''}
+                              onChange={(event) => {
+                                const option = roomConfigurationOptions.find((candidate) => candidate.code === event.target.value)
+                                updateItem(index, {
+                                  room_configuration_code: option?.code ?? null,
+                                  room_configuration_label: option?.label ?? null,
+                                })
+                              }}
+                              className="w-full border border-gray-200 rounded px-1.5 py-1 text-xs focus:ring-1 focus:ring-ziwa-400 focus:border-ziwa-400"
+                            >
+                              <option value="">Select room configuration</option>
+                              {roomConfigurationOptions.map((option) => (
+                                <option key={option.code} value={option.code}>{option.label}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      )}
                       <div className="flex flex-col md:flex-row md:items-center gap-2">
                         <input
                           type="text"
@@ -1207,9 +1331,16 @@ export default function BookingManagerModal({
               </button>
               <button type="button" onClick={handleClose} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
               {bookingId && (
-                <button type="button" onClick={() => setShowDeleteConfirm(true)} className="ml-auto text-sm text-red-500 hover:text-red-700">
-                  Request Deletion
-                </button>
+                <div className="ml-auto flex items-center gap-3">
+                  {canDirectlyCancelBooking && (
+                    <button type="button" onClick={openDirectCancellation} className="text-sm text-red-500 hover:text-red-700">
+                      Cancel Booking
+                    </button>
+                  )}
+                  <button type="button" onClick={openAdminDeletionRequest} className="text-sm text-red-500 hover:text-red-700">
+                    Request Admin Deletion
+                  </button>
+                </div>
               )}
             </div>
           </form>
@@ -1284,23 +1415,39 @@ export default function BookingManagerModal({
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" onClick={() => setShowDeleteConfirm(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-5 space-y-3" onClick={(event) => event.stopPropagation()}>
-            <h3 className="text-sm font-bold text-gray-900">Request Booking Deletion</h3>
-            <p className="text-xs text-gray-500">This will submit a deletion request for admin approval. The booking will not be removed until approved.</p>
+            <h3 className="text-sm font-bold text-gray-900">
+              {isDirectCancellation ? 'Cancel Booking' : 'Request Admin Deletion'}
+            </h3>
+            <p className="text-xs text-gray-500">
+              {isDirectCancellation
+                ? 'This will cancel the booking. The booking record will remain available for audit.'
+                : 'This will submit a deletion request for admin approval. The booking will not be removed until approved.'}
+            </p>
             <textarea
               value={deletionReason}
               onChange={(event) => setDeletionReason(event.target.value)}
               rows={3}
-              placeholder="Reason for deletion *"
+              placeholder={isDirectCancellation ? 'Reason for cancellation (optional)' : 'Reason for deletion *'}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-ziwa-400 focus:border-ziwa-400"
             />
             <div className="flex gap-2">
-              <button
-                onClick={handleDeletionRequest}
-                disabled={deletionSubmitting || !deletionReason.trim()}
-                className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors"
-              >
-                {deletionSubmitting ? 'Submitting…' : 'Submit Deletion Request'}
-              </button>
+              {isDirectCancellation ? (
+                <button
+                  onClick={handleDirectCancellation}
+                  disabled={deletionSubmitting}
+                  className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors"
+                >
+                  {deletionSubmitting ? 'Cancelling…' : 'Cancel Booking'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleAdminDeletionRequest}
+                  disabled={deletionSubmitting || !deletionReason.trim()}
+                  className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors"
+                >
+                  {deletionSubmitting ? 'Submitting…' : 'Request Admin Deletion'}
+                </button>
+              )}
               <button onClick={() => setShowDeleteConfirm(false)} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
             </div>
           </div>

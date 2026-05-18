@@ -52,6 +52,7 @@ export interface InventoryGridConfig {
   category: string
   showCost: boolean
   showPrevious: boolean
+  unitOptions?: string[]
   extraFields?: { name: string; label: string; type: 'text' | 'number'; placeholder?: string }[]
 }
 
@@ -334,12 +335,18 @@ export interface PaxBed {
   count: number
 }
 
+export interface StayConfigurationOption {
+  code: string
+  label: string
+}
+
 export interface PaxConfig {
   max_adults: number
   max_children: number
   max_total: number
   cot_eligible: boolean
   beds: PaxBed[]
+  stay_configurations?: StayConfigurationOption[]
 }
 
 export type PricingType = 'flat' | 'per_person'
@@ -350,6 +357,7 @@ export interface AccommodationUnit {
   building: BuildingType
   category: string
   capacity: number
+  max_concurrent_bookings?: number | null
   rate_category: string
   description: string | null
   pax_config: PaxConfig | null
@@ -421,6 +429,8 @@ export interface RoomBasketItem {
   pricing_type: PricingType
   isComplimentary: boolean
   compReason?: string
+  room_configuration_code?: string | null
+  room_configuration_label?: string | null
 }
 
 export interface BookingRoom {
@@ -432,6 +442,7 @@ export interface BookingRoom {
 }
 
 export interface RequestedChanges {
+  action?: 'delete'
   check_in?: string
   check_out?: string
   adults?: number

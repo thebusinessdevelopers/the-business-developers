@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
-import { withAdminAuth } from '@/lib/with-admin-auth'
+import { withAuth } from '@/lib/with-auth'
 import { createServerClient } from '@/lib/supabase-server'
 
-export const GET = withAdminAuth(async ({ request }) => {
+export const GET = withAuth(async ({ user, request }) => {
+  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  if (user.department_slug !== 'head-office') {
+    return NextResponse.json({ error: 'Head Office access is required.' }, { status: 403 })
+  }
+
   const supabase = createServerClient()
   const url = new URL(request.url)
   const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0]
@@ -24,12 +29,12 @@ export const GET = withAdminAuth(async ({ request }) => {
 
   const { data: bookings, error } = bookingsResult
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (unitsResult.error) return NextResponse.json({ error: unitsResult.error.message }, { status: 500 })
 
-  const { data: allUnits } = unitsResult
-
+  const allUnits = unitsResult.data ?? []
   const unitBookingMap: Record<string, typeof bookings[0] | null> = {}
   const unitBookingsMap: Record<string, typeof bookings> = {}
-  for (const unit of allUnits ?? []) {
+  for (const unit of allUnits) {
     unitBookingMap[unit.id] = null
     unitBookingsMap[unit.id] = []
   }
@@ -42,14 +47,14 @@ export const GET = withAdminAuth(async ({ request }) => {
 
   const totalGuests = (bookings ?? []).reduce((sum, b) => sum + b.adults + b.children, 0)
   const occupiedUnits = Object.values(unitBookingsMap).filter((unitBookings) => unitBookings.length > 0).length
-  const totalUnits = (allUnits ?? []).length
+  const totalUnits = allUnits.length
 
   return NextResponse.json({
     date,
     bookings: bookings ?? [],
-    units: allUnits ?? [],
+    units: allUnits,
     unitBookingMap,
     unitBookingsMap,
     summary: { totalGuests, occupiedUnits, totalUnits },
   })
-}, { capability: 'accommodation_manage' })
+})

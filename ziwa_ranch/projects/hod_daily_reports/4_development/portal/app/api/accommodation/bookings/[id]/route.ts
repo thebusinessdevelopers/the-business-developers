@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { withAuth } from '@/lib/with-auth'
 import { createServerClient } from '@/lib/supabase-server'
-import { canManageAccommodationBookings, canViewPrivateGuestNames, validateAccommodationStayDates } from '@hod/shared/config/accommodation'
-import { validateAccommodationWrite } from '@hod/shared/lib/accommodation-guards'
+import { canDirectlyCancelAccommodationBooking, canDirectlyManageAccommodationBookings, canManageAccommodationBookings, canViewPrivateGuestNames, validateAccommodationStayDates } from '@hod/shared/config/accommodation'
+import { isBookingVisibleToDepartment, validateAccommodationWrite } from '@hod/shared/lib/accommodation-guards'
 
 export const GET = withAuth(async ({ user, request }) => {
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -49,6 +49,50 @@ export const PUT = withAuth(async ({ user, request }) => {
   const { unit_ids, basket } = body
   const hasBasket = Array.isArray(basket) && basket.length > 0
 
+  const { data: current, error: currentError } = await supabase
+    .from('bookings')
+    .select('check_in, check_out, status, booking_rooms(unit_id)')
+    .eq('id', id)
+    .single()
+
+  if (currentError || !current) {
+    return NextResponse.json({ error: 'Booking not found.' }, { status: 404 })
+  }
+  if (!isBookingVisibleToDepartment(user.department_slug, current)) {
+    return NextResponse.json({ error: 'That booking is outside your department accommodation scope.' }, { status: 403 })
+  }
+
+  if (body.status === 'cancelled') {
+    if (!canDirectlyCancelAccommodationBooking(user.department_slug)) {
+      return NextResponse.json({ error: 'Your department cannot cancel bookings directly.' }, { status: 403 })
+    }
+    if (current.status === 'hod_pending') {
+      return NextResponse.json({ error: 'Pending bookings must be reviewed with approve or deny.' }, { status: 400 })
+    }
+
+    const cancellationReason = typeof body.reason === 'string' ? body.reason.trim() : ''
+
+    const { error: cancelError } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+
+    if (cancelError) return NextResponse.json({ error: cancelError.message }, { status: 500 })
+
+    await Promise.resolve(supabase.from('booking_activity_log').insert({
+      booking_id: id,
+      action: 'hod_booking_cancelled',
+      actor_user_id: user.id,
+      details: { dept: user.department_slug, reason: cancellationReason || null },
+    })).catch((e) => console.error('Activity log insert failed:', e))
+
+    return NextResponse.json({ success: true })
+  }
+
+  if (!canDirectlyManageAccommodationBookings(user.department_slug)) {
+    return NextResponse.json({ error: 'Your department must request booking changes for existing bookings.' }, { status: 403 })
+  }
+
   if (!body.guest_name || !body.check_in || !body.check_out) {
     return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
   }
@@ -64,16 +108,6 @@ export const PUT = withAuth(async ({ user, request }) => {
   const stayValidation = validateAccommodationStayDates(user.department_slug, body.check_in, body.check_out)
   if (!stayValidation.valid) {
     return NextResponse.json({ error: stayValidation.error }, { status: 400 })
-  }
-
-  const { data: current, error: currentError } = await supabase
-    .from('bookings')
-    .select('status, booking_rooms(unit_id)')
-    .eq('id', id)
-    .single()
-
-  if (currentError || !current) {
-    return NextResponse.json({ error: 'Booking not found.' }, { status: 404 })
   }
 
   if (current.status === 'hod_pending' && body.status !== 'hod_pending') {

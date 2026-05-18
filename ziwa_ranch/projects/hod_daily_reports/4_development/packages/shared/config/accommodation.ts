@@ -173,7 +173,10 @@ const HEAD_OFFICE_HOD_RANGE_POLICY: AccommodationDateRangePolicy = {
 
 const ACCOMMODATION_POLICY_OVERRIDES: Record<string, AccommodationDepartmentPolicy> = {
   'food-and-beverage': {
-    capabilities: DEFAULT_ACCOMMODATION_CAPABILITIES,
+    capabilities: {
+      ...DEFAULT_ACCOMMODATION_CAPABILITIES,
+      canViewPrivateGuestNames: true,
+    },
     range: MONTH_HOD_RANGE_POLICY,
   },
   'head-office': {
@@ -196,7 +199,7 @@ const ACCOMMODATION_POLICY_OVERRIDES: Record<string, AccommodationDepartmentPoli
       existingBookingAction: 'manage',
       emptyCellAction: 'create',
       canReviewPendingBookings: false,
-      canViewPrivateGuestNames: false,
+      canViewPrivateGuestNames: true,
     },
     range: MONTH_HOD_RANGE_POLICY,
   },
@@ -208,23 +211,28 @@ const ACCOMMODATION_POLICY_OVERRIDES: Record<string, AccommodationDepartmentPoli
       existingBookingAction: 'manage',
       emptyCellAction: 'create',
       canReviewPendingBookings: false,
-      canViewPrivateGuestNames: false,
+      canViewPrivateGuestNames: true,
     },
     range: MONTH_HOD_RANGE_POLICY,
   },
+  kitchen: {
+    capabilities: {
+      ...DEFAULT_ACCOMMODATION_CAPABILITIES,
+      canViewPrivateGuestNames: true,
+    },
+    range: DEFAULT_HOD_RANGE_POLICY,
+  },
   'main-gate': {
     capabilities: {
-      canCreateBooking: true,
-      canSubmitChangeRequest: true,
-      requiresApproval: true,
-      existingBookingAction: 'manage',
-      emptyCellAction: 'create',
-      canReviewPendingBookings: false,
-      canViewPrivateGuestNames: false,
+      ...DEFAULT_ACCOMMODATION_CAPABILITIES,
+      canViewPrivateGuestNames: true,
     },
     range: MONTH_HOD_RANGE_POLICY,
   },
 }
+
+const DIRECT_CANCELLATION_DEPTS: readonly string[] = ['head-office']
+const DIRECT_MANAGEMENT_DEPTS: readonly string[] = ['head-office']
 
 function parseAccommodationUtcDate(dateStr: string): Date {
   return new Date(`${dateStr}T12:00:00Z`)
@@ -264,6 +272,28 @@ export function requiresApproval(slug: string): boolean {
 
 export function canManageAccommodationBookings(slug: string): boolean {
   return getAccommodationCapabilities(slug).existingBookingAction === 'manage'
+}
+
+export function canDirectlyManageAccommodationBooking(slug: string): boolean {
+  return DIRECT_MANAGEMENT_DEPTS.includes(slug)
+}
+
+export function canDirectlyManageAccommodationBookings(slug: string): boolean {
+  return canDirectlyManageAccommodationBooking(slug)
+}
+
+export function canDirectlyCancelAccommodationBooking(slug: string): boolean {
+  return DIRECT_CANCELLATION_DEPTS.includes(slug)
+}
+
+export function canRequestAccommodationBooking(slug: string): boolean {
+  const capabilities = getAccommodationCapabilities(slug)
+  return capabilities.canCreateBooking && capabilities.requiresApproval
+}
+
+export function canRequestAccommodationDeletion(slug: string): boolean {
+  const capabilities = getAccommodationCapabilities(slug)
+  return capabilities.canSubmitChangeRequest || canDirectlyCancelAccommodationBooking(slug)
 }
 
 export function canReviewPendingBookings(slug: string): boolean {
@@ -459,7 +489,7 @@ export function validateAccommodationStayDates(
 
 export const CHANGE_REQUEST_DEPTS = Object.freeze(
   Object.entries(ACCOMMODATION_POLICY_OVERRIDES)
-    .filter(([, policy]) => policy.capabilities.canSubmitChangeRequest)
+    .filter(([slug]) => canRequestAccommodationDeletion(slug))
     .map(([slug]) => slug),
 )
 

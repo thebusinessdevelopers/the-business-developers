@@ -13,7 +13,17 @@ interface OverlappingBookingCandidate {
   guest_name: string
   check_in: string
   check_out: string
+  adults: number
+  children: number
   booking_rooms: { unit_id: string }[] | null
+}
+
+interface AccommodationBasketValidationItem {
+  unit_id: string
+  adults: number
+  children: number
+  room_configuration_code?: string | null
+  room_configuration_label?: string | null
 }
 
 export interface AccommodationWriteValidationInput {
@@ -22,7 +32,7 @@ export interface AccommodationWriteValidationInput {
   roomIds: string[]
   adults: number
   children: number
-  basketItems?: Array<{ unit_id: string; adults: number; children: number }>
+  basketItems?: AccommodationBasketValidationItem[]
   excludeBookingId?: string | null
   allowedInactiveRoomIds?: string[]
   adminOverride?: boolean
@@ -42,6 +52,77 @@ function formatRoomList(names: string[]): string {
   if (names.length === 1) return names[0]
   if (names.length === 2) return `${names[0]} and ${names[1]}`
   return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`
+}
+
+function isCapacitySharedUnit(unit: AccommodationUnit): boolean {
+  return unit.category === 'campsite' || (unit.max_concurrent_bookings ?? 1) > 1
+}
+
+function getUnitGuestCapacity(unit: AccommodationUnit): number {
+  return unit.pax_config?.max_total ?? unit.capacity
+}
+
+function getRequestedGuestsForUnit(input: AccommodationWriteValidationInput, unitId: string): number {
+  const matchingBasketItems = input.basketItems?.filter((item) => item.unit_id === unitId) ?? []
+  if (matchingBasketItems.length > 0) {
+    return matchingBasketItems.reduce((total, item) => total + item.adults + item.children, 0)
+  }
+  return input.adults + input.children
+}
+
+function validateRoomConfiguration(unit: AccommodationUnit, item: AccommodationBasketValidationItem): string | null {
+  const options = unit.pax_config?.stay_configurations ?? []
+  const selectedCode = item.room_configuration_code?.trim()
+  const selectedLabel = item.room_configuration_label?.trim()
+
+  if (options.length === 0) {
+    return selectedCode || selectedLabel ? `${unit.name} does not support room options.` : null
+  }
+
+  if (!selectedCode) {
+    return `${unit.name} requires a room option.`
+  }
+
+  const selectedOption = options.find((option) => option.code.trim() === selectedCode)
+  if (!selectedOption) {
+    return `${unit.name} must use a configured room option.`
+  }
+
+  if (selectedLabel && selectedLabel !== selectedOption.label.trim()) {
+    return `${unit.name} must use the configured room option label.`
+  }
+
+  return null
+}
+
+function validateSelectedRoomConfigurations(
+  units: AccommodationUnit[],
+  input: AccommodationWriteValidationInput,
+): string | null {
+  const unitById = new Map(units.map((unit) => [unit.id, unit]))
+  const basketItems = input.basketItems ?? []
+
+  for (const item of basketItems) {
+    const unit = unitById.get(item.unit_id)
+    if (!unit) {
+      return 'One or more selected rooms no longer exist.'
+    }
+
+    const configurationError = validateRoomConfiguration(unit, item)
+    if (configurationError) {
+      return configurationError
+    }
+  }
+
+  for (const unit of units) {
+    const requiresConfiguration = (unit.pax_config?.stay_configurations ?? []).length > 0
+    const hasBasketItem = basketItems.some((item) => item.unit_id === unit.id)
+    if (requiresConfiguration && !hasBasketItem) {
+      return `${unit.name} requires a room option.`
+    }
+  }
+
+  return null
 }
 
 export function getAccommodationVisibilityWindow(
@@ -81,7 +162,7 @@ export async function validateAccommodationWrite(
 
   const { data: rawUnits, error: unitsError } = await supabase
     .from('accommodation_units')
-    .select('id, name, building, category, capacity, rate_category, description, pax_config, pricing_type, status, sort_order, created_at')
+    .select('id, name, building, category, capacity, max_concurrent_bookings, rate_category, description, pax_config, pricing_type, status, sort_order, created_at')
     .in('id', roomIds)
 
   if (unitsError) {
@@ -105,13 +186,22 @@ export async function validateAccommodationWrite(
     }
   }
 
-  if (input.basketItems && input.basketItems.length > 0 && !input.adminOverride) {
+  const roomConfigurationError = validateSelectedRoomConfigurations(units, input)
+  if (roomConfigurationError) {
+    return { ok: false, units, error: roomConfigurationError }
+  }
+
+  if (input.basketItems && input.basketItems.length > 0) {
     const unitById = new Map(units.map((unit) => [unit.id, unit]))
 
     for (const item of input.basketItems) {
       const unit = unitById.get(item.unit_id)
       if (!unit) {
         return { ok: false, units, error: 'One or more selected rooms no longer exist.' }
+      }
+
+      if (input.adminOverride) {
+        continue
       }
 
       const maxAdults = unit.pax_config?.max_adults ?? unit.capacity
@@ -140,7 +230,7 @@ export async function validateAccommodationWrite(
 
   const { data: rawOverlaps, error: overlapsError } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_in, check_out, booking_rooms(unit_id)')
+    .select('id, guest_name, check_in, check_out, adults, children, booking_rooms(unit_id)')
     .lt('check_in', input.checkOut)
     .gt('check_out', input.checkIn)
     .neq('status', 'cancelled')
@@ -149,6 +239,7 @@ export async function validateAccommodationWrite(
     return { ok: false, units, error: overlapsError.message }
   }
 
+  const unitById = new Map(units.map((unit) => [unit.id, unit]))
   const unitNameById = new Map(units.map((unit) => [unit.id, unit.name]))
   const overlaps = ((rawOverlaps ?? []) as OverlappingBookingCandidate[])
     .filter((booking) => booking.id !== input.excludeBookingId)
@@ -160,14 +251,41 @@ export async function validateAccommodationWrite(
     })
     .filter((entry) => entry.conflictRoomIds.length > 0)
 
-  if (overlaps.length > 0) {
-    const roomNames = uniqueRoomIds(overlaps.flatMap((entry) => entry.conflictRoomIds))
+  const exclusiveOverlaps = overlaps
+    .map((entry) => ({
+      booking: entry.booking,
+      conflictRoomIds: entry.conflictRoomIds.filter((roomId) => {
+        const unit = unitById.get(roomId)
+        return !unit || !isCapacitySharedUnit(unit)
+      }),
+    }))
+    .filter((entry) => entry.conflictRoomIds.length > 0)
+
+  if (exclusiveOverlaps.length > 0) {
+    const roomNames = uniqueRoomIds(exclusiveOverlaps.flatMap((entry) => entry.conflictRoomIds))
       .map((roomId) => unitNameById.get(roomId) ?? roomId)
-    const firstConflict = overlaps[0].booking
+    const firstConflict = exclusiveOverlaps[0].booking
     return {
       ok: false,
       units,
       error: `${formatRoomList(roomNames)} is already booked for ${firstConflict.guest_name} from ${firstConflict.check_in} to ${firstConflict.check_out}.`,
+    }
+  }
+
+  for (const unit of units.filter(isCapacitySharedUnit)) {
+    const existingGuests = overlaps.reduce((total, entry) => {
+      if (!entry.conflictRoomIds.includes(unit.id)) return total
+      return total + entry.booking.adults + entry.booking.children
+    }, 0)
+    const requestedGuests = getRequestedGuestsForUnit(input, unit.id)
+    const capacity = getUnitGuestCapacity(unit)
+
+    if (existingGuests + requestedGuests > capacity) {
+      return {
+        ok: false,
+        units,
+        error: `${unit.name} has reached its maximum capacity of ${capacity} guests for these dates.`,
+      }
     }
   }
 

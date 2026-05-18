@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { withAuth } from '@/lib/with-auth'
 import { createServerClient } from '@/lib/supabase-server'
-import { canSubmitChangeRequest, validateAccommodationStayDates } from '@hod/shared/config/accommodation'
+import { canRequestAccommodationBooking, canRequestAccommodationDeletion, canSubmitChangeRequest, validateAccommodationStayDates } from '@hod/shared/config/accommodation'
 import { isBookingVisibleToDepartment } from '@hod/shared/lib/accommodation-guards'
 import type { MealPlan, RequestedChanges } from '@hod/shared/types'
 
@@ -12,10 +12,14 @@ const ALLOWED_CHANGE_KEYS = new Set([
   'meal_plan', 'special_notes', 'guest_email', 'guest_phone',
 ])
 
-function sanitiseRequestedChanges(input: unknown): RequestedChanges | null {
+export function sanitiseRequestedChanges(input: unknown): RequestedChanges | null {
   if (!input || typeof input !== 'object') return null
 
   const raw = input as Record<string, unknown>
+  if ('action' in raw) {
+    return raw.action === 'delete' && Object.keys(raw).length === 1 ? { action: 'delete' } : null
+  }
+
   const blocked = Object.keys(raw).filter((k) => !ALLOWED_CHANGE_KEYS.has(k))
   if (blocked.length > 0) return null
 
@@ -33,9 +37,59 @@ function sanitiseRequestedChanges(input: unknown): RequestedChanges | null {
   return Object.keys(changes).length > 0 ? changes : null
 }
 
+function isInvalidRequestedChangesInput(input: unknown, requestedChanges: RequestedChanges | null): boolean {
+  return !!input
+    && typeof input === 'object'
+    && Object.keys(input as Record<string, unknown>).length > 0
+    && requestedChanges === null
+}
+
+export const GET = withAuth(async ({ user, request }) => {
+  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  if (!user.department_slug) {
+    return NextResponse.json({ error: 'Your department cannot view change requests.' }, { status: 403 })
+  }
+  if (!user.department_id) {
+    return NextResponse.json({ error: 'Your department cannot view change requests.' }, { status: 403 })
+  }
+
+  const supabase = createServerClient()
+  const url = new URL(request.url)
+  const bookingId = url.searchParams.get('booking_id')
+  const status = url.searchParams.get('status') || 'pending'
+
+  if (!bookingId) {
+    return NextResponse.json({ error: 'booking_id is required.' }, { status: 400 })
+  }
+
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('id, check_in, check_out, status')
+    .eq('id', bookingId)
+    .single()
+  if (!booking) return NextResponse.json({ error: 'Booking not found.' }, { status: 404 })
+  if (!isBookingVisibleToDepartment(user.department_slug, booking)) {
+    return NextResponse.json({ error: 'That booking is outside your department accommodation scope.' }, { status: 403 })
+  }
+
+  let query = supabase
+    .from('booking_change_requests')
+    .select('id, booking_id, reason, requested_changes, status, created_at, reviewed_at')
+    .eq('booking_id', bookingId)
+    .eq('requesting_dept_id', user.department_id)
+    .order('created_at', { ascending: false })
+
+  if (status !== 'all') query = query.eq('status', status)
+
+  const { data, error } = await query
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json(data ?? [])
+})
+
 export const POST = withAuth(async ({ user, request }) => {
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-  if (!user.department_slug || !canSubmitChangeRequest(user.department_slug)) {
+  if (!user.department_slug) {
     return NextResponse.json({ error: 'Your department cannot submit change requests.' }, { status: 403 })
   }
 
@@ -46,6 +100,17 @@ export const POST = withAuth(async ({ user, request }) => {
 
   if (!booking_id || !reason?.trim()) {
     return NextResponse.json({ error: 'Booking and reason are required.' }, { status: 400 })
+  }
+  if (isInvalidRequestedChangesInput(body.requested_changes, requestedChanges)) {
+    return NextResponse.json({ error: 'Unsupported change request shape.' }, { status: 400 })
+  }
+
+  const isDeletionRequest = requestedChanges?.action === 'delete'
+  const canSubmitRequest = isDeletionRequest
+    ? canRequestAccommodationDeletion(user.department_slug)
+    : canRequestAccommodationBooking(user.department_slug) || canSubmitChangeRequest(user.department_slug)
+  if (!canSubmitRequest) {
+    return NextResponse.json({ error: 'Your department cannot submit change requests.' }, { status: 403 })
   }
 
   const { data: booking } = await supabase
